@@ -16,22 +16,34 @@
   <section class="auth-screen" id="auth-screen">
     <div class="auth-glow auth-glow-one"></div>
     <div class="auth-glow auth-glow-two"></div>
-    <div class="auth-card glass">
-      <div class="auth-brand"><span class="brand-mark"><span>↗</span></span><span><b>ЛИНИЯ</b><strong>РОСТА</strong></span></div>
+    <div class="auth-card">
+      <div class="auth-brand"><span class="brand-mark"><span>↗</span></span><span><b>ЛИНИЯ</b><strong>РОСТА</strong></span><i>Академия 2026</i></div>
       <div class="auth-copy">
-        <span class="eyebrow">Академия телемаркетинга</span>
-        <h1>Ваш рост<br><em>начинается здесь.</em></h1>
-        <p>Введите имя и фамилию. Если профиль уже существует — откроется ваш кабинет, если нет — мы создадим его автоматически.</p>
+        <span class="eyebrow"><i></i> Отдел телемаркетинга</span>
+        <h1>Говори<br><em>уверенно.</em><br>Расти в результате.</h1>
+        <p>Единое пространство для обучения, практики и развития навыков сильного звонка.</p>
+      </div>
+      <div class="auth-benefits" aria-label="Возможности платформы">
+        <span><b>01</b> Курсы</span><span><b>02</b> Тесты</span><span><b>03</b> Аналитика</span>
       </div>
       <form class="auth-form" id="auth-form">
-        <label>Имя<input name="firstName" autocomplete="given-name" required placeholder="Например, Алексей"></label>
-        <label>Фамилия<input name="lastName" autocomplete="family-name" required placeholder="Например, Ким"></label>
+        <label>Имя и фамилия<input name="fullName" autocomplete="name" required placeholder="Например, Монастырёв Никита" aria-describedby="name-hint"></label>
         <button class="primary full" type="submit">Открыть мой кабинет <span>→</span></button>
       </form>
-      <div class="auth-admin"><span>◆</span><p><b>Администратор команды</b><br>Никита Монастырёв</p></div>
-      <small class="auth-hint">Без пароля · данные сохраняются на этом устройстве</small>
+      <small class="auth-hint" id="name-hint"><span>✓</span> Без пароля · можно вводить имя и фамилию в любом порядке</small>
     </div>
-    <div class="auth-visual" aria-hidden="true"><div class="auth-orbit"></div><div class="auth-phone">☎</div><span class="auth-float af-one">✓</span><span class="auth-float af-two">↗</span><span class="auth-float af-three">★</span></div>
+    <div class="auth-visual" aria-hidden="true">
+      <div class="auth-orbit"></div>
+      <article class="auth-poster">
+        <div class="poster-top"><span>Формула</span><b>Сильного звонка</b></div>
+        <div class="auth-phone"><span>☎</span></div>
+        <div class="poster-score"><strong>+24%</strong><small>к результату</small></div>
+        <div class="poster-line"><i></i><i></i><i></i><i></i><i></i></div>
+        <p>Не просто читай скрипт —<br><b>управляй разговором.</b></p>
+      </article>
+      <span class="auth-float af-one">✓</span><span class="auth-float af-two">↗</span><span class="auth-float af-three">★</span>
+      <div class="auth-flow"><span><b>01</b>Контакт</span><span><b>02</b>Потребность</span><span><b>03</b>Результат</span></div>
+    </div>
   </section>
 
   <div class="app-shell is-hidden" id="app-shell">
@@ -44,7 +56,7 @@
         <span><b>ЛИНИЯ</b><strong>РОСТА</strong></span>
       </button>
 
-      <div class="owner-pill"><span class="status-dot"></span><span>Команда</span><b>Никиты Монастырёва</b></div>
+      <div class="owner-pill"><span class="status-dot"></span><b>Академия телемаркетинга</b></div>
 
       <div class="header-actions">
         <button class="round-button" data-notify="Новых уведомлений: 3" aria-label="Уведомления"><span class="ui-icon">♢</span><i>3</i></button>
