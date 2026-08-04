@@ -123,7 +123,7 @@ function showAuth() {
   document.getElementById("auth-screen").classList.remove("is-hidden");
   document.getElementById("app-shell").classList.add("is-hidden");
   document.getElementById("auth-form").reset();
-  document.querySelector('#auth-form input[name="firstName"]').focus();
+  document.querySelector('#auth-form input[name="fullName"]').focus();
 }
 
 function showApp() {
@@ -175,7 +175,7 @@ function pageIntro(kicker,title,description,action="") {
 }
 
 function footer() {
-  return `<footer class="site-footer"><span>Все сотрудники прикреплены к администратору <b>Никите Монастырёву</b></span><span class="local-badge">✓ Данные сохранены</span></footer>`;
+  return `<footer class="site-footer"><span>Линия роста · обучение и практика в одном пространстве</span><span class="local-badge">✓ Данные сохранены</span></footer>`;
 }
 
 function employeeHome() {
@@ -183,7 +183,7 @@ function employeeHome() {
   const lastAttempt = m.attempts.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
   return `<div class="dashboard employee-view">
     ${pageIntro("Личный кабинет",`Добрый день, ${escapeHtml(user.firstName)}`,"Ваш персональный план, результаты и ближайшие задачи.",'<button class="search-button" data-nav="Тесты"><span class="ui-icon">⌕</span><span>Найти тест</span><kbd>Ctrl K</kbd></button>')}
-    <section class="hero employee-hero"><div class="hero-content"><div class="eyebrow light"><span></span> Следующий шаг · Тест</div><h2>Знания превращаем<br><em>в уверенный результат.</em></h2><p>Пройдите тест «Формула сильного звонка». Результат сразу появится в вашей аналитике и у администратора.</p><div class="hero-actions"><button class="white-button" data-action="start-test" data-id="test-strong-call">Начать тест <span>→</span></button><span>3 вопроса · 5 минут</span></div></div><div class="hero-visual" aria-hidden="true"><div class="orbit"></div><div class="orbit orbit-two"></div><div class="phone"><span>●</span><b>☎</b></div><div class="floating-icon fi-one">✓</div><div class="floating-icon fi-two">↗</div></div><div class="hero-progress"><div class="progress-ring" style="--value:${Math.max(20,m.skill)*3.6}deg"><span><b>${m.skill}%</b><small>навык</small></span></div><p>Средний результат<br><b>${m.avg || "нет тестов"}${m.avg?"%":""}</b></p></div></section>
+    <section class="hero employee-hero"><div class="hero-content"><div class="eyebrow light"><span></span> Следующий шаг · Тест</div><h2>Знания превращаем<br><em>в уверенный результат.</em></h2><p>Пройдите тест «Формула сильного звонка». Результат сразу появится в вашей персональной аналитике.</p><div class="hero-actions"><button class="white-button" data-action="start-test" data-id="test-strong-call">Начать тест <span>→</span></button><span>3 вопроса · 5 минут</span></div></div><div class="hero-visual" aria-hidden="true"><div class="orbit"></div><div class="orbit orbit-two"></div><div class="phone"><span>●</span><b>☎</b></div><div class="floating-icon fi-one">✓</div><div class="floating-icon fi-two">↗</div></div><div class="hero-progress"><div class="progress-ring" style="--value:${Math.max(20,m.skill)*3.6}deg"><span><b>${m.skill}%</b><small>навык</small></span></div><p>Средний результат<br><b>${m.avg || "нет тестов"}${m.avg?"%":""}</b></p></div></section>
     <section class="metrics-grid">${metric("◆",m.xp,"баллов опыта",m.xp?"накоплено за обучение":"начните первый тест",m.xp>0)}${metric("✓",`${m.avg}%`,"средний тест",`${m.attempts.length} попыток`,m.avg>=70)}${metric("▰",`${m.courseAvg}%`,"прогресс курсов",`${Object.keys(user.courseProgress||{}).length} активных курсов`,m.courseAvg>0)}${metric("⚡",`${m.streak} дн.`,"серия активности",m.streak>1?"отличный ритм":"первый день")}</section>
     <div class="content-grid"><section class="panel learning-panel"><div class="panel-heading"><div><span>Быстрый доступ</span><h3>Продолжить обучение</h3></div><button data-nav="Курсы">Все курсы →</button></div><div class="quick-grid"><button class="quick-card" data-nav="Курсы"><span>01</span><div><small>Курс</small><b>Сильный звонок</b><em>${user.courseProgress?.["strong-call"] || 0}% пройдено</em></div><i>→</i></button><button class="quick-card" data-nav="Задания"><span>02</span><div><small>Практика</small><b>Учебный звонок</b><em>${user.assignments?.["audio-call"]?"выполнено":"сдать сегодня"}</em></div><i>→</i></button><button class="quick-card" data-nav="Тесты"><span>03</span><div><small>Тест</small><b>Работа с возражениями</b><em>3 вопроса</em></div><i>→</i></button></div></section>
     <section class="panel skill-panel"><div class="panel-heading"><div><span>Последний результат</span><h3>${lastAttempt?escapeHtml(testById(lastAttempt.testId)?.title || "Тест"):"Начните обучение"}</h3></div></div>${lastAttempt?`<div class="result-orb ${lastAttempt.score>=70?"good":"warn"}"><strong>${lastAttempt.score}%</strong><small>${formatDate(lastAttempt.date)}</small></div><p class="result-copy">Правильных ответов: <b>${lastAttempt.correct} из ${lastAttempt.total}</b></p><button class="soft-button" data-action="start-test" data-id="${lastAttempt.testId}">Пройти ещё раз <span>→</span></button>`:`<div class="empty-state"><span class="empty-icon">✓</span><b>Здесь появятся результаты</b><p>Выберите тест и ответьте на вопросы.</p></div>`}</section></div>
@@ -216,7 +216,7 @@ function employeeRanking() {
 
 function adminOverview() {
   const employees=db.users.filter((u)=>u.role!=="admin"); const attempts=db.attempts; const avg=attempts.length?Math.round(attempts.reduce((s,a)=>s+a.score,0)/attempts.length):0; const active=employees.filter((u)=>u.lastActive).length;
-  return `<div class="dashboard organizer-view">${pageIntro("Центр управления","Команда Никиты Монастырёва","Все зарегистрированные сотрудники, их обучение и результаты в одном кабинете.",'<button class="primary" data-nav="Тесты"><span>＋</span> Создать тест</button>')}
+  return `<div class="dashboard organizer-view">${pageIntro("Центр управления","Панель руководителя","Сотрудники, обучение и результаты в одном кабинете.",'<button class="primary" data-nav="Тесты"><span>＋</span> Создать тест</button>')}
     <section class="hero organizer-hero"><div class="hero-content"><div class="eyebrow light"><span></span> Единая команда</div><h2>Видеть прогресс.<br><em>Усиливать каждого.</em></h2><p>Открывайте профиль любого сотрудника, смотрите историю тестов и создавайте новые проверки знаний.</p><button class="white-button" data-nav="Сотрудники">Открыть сотрудников <span>→</span></button></div><div class="team-orbit" aria-hidden="true"><div class="leader">НМ<span>${employees.length}</span></div><div class="person p1">АК</div><div class="person p2">ИМ</div><div class="person p3">МЛ</div><div class="person p4">ДС</div><i class="ring r1"></i><i class="ring r2"></i></div></section>
     <section class="metrics-grid">${metric("●",employees.length,"сотрудников",`${active} открывали кабинет`,employees.length>0)}${metric("✓",`${avg}%`,"средний результат",`${attempts.length} попыток`,avg>=70)}${metric("◆",db.tests.length,"теста создано",`${db.tests.filter(t=>t.published).length} опубликовано`)}${metric("↗",employees.reduce((s,u)=>s+(u.xp||0),0),"XP команды","суммарный опыт",true)}</section>
     <div class="content-grid organizer-grid"><section class="panel team-panel"><div class="panel-heading"><div><span>Последние профили</span><h3>Сотрудники</h3></div><button data-nav="Сотрудники">Вся команда →</button></div>${employees.length?employeeTable(employees.slice(-5).reverse()):'<div class="empty-state"><span class="empty-icon">◎</span><b>Пока нет сотрудников</b><p>Новый профиль появится здесь после входа по имени и фамилии.</p></div>'}</section><section class="panel funnel-panel"><div class="panel-heading"><div><span>Контент</span><h3>Быстрые действия</h3></div></div><div class="admin-actions"><button data-action="edit-test" data-id=""><span>＋</span><div><b>Создать тест</b><small>Добавить вопросы и ответы</small></div></button><button data-nav="Тесты"><span>✓</span><div><b>Редактировать тесты</b><small>${db.tests.length} материалов</small></div></button><button data-nav="Сотрудники"><span>●</span><div><b>Открыть аналитику</b><small>По каждому человеку</small></div></button></div></section></div>${footer()}</div>`;
@@ -228,7 +228,7 @@ function employeeTable(users) {
 
 function adminEmployees() {
   const employees=db.users.filter((u)=>u.role!=="admin");
-  return `<div class="dashboard">${pageIntro("Команда","Сотрудники","Каждый зарегистрированный профиль автоматически прикреплён к Никите Монастырёву.")}
+  return `<div class="dashboard">${pageIntro("Команда","Сотрудники","Открывайте профили и отслеживайте прогресс обучения каждого человека.")}
     <section class="panel directory-panel">${employees.length?employeeTable(employees):'<div class="empty-state"><span class="empty-icon">●</span><b>Список пока пуст</b><p>Попросите сотрудника открыть сайт и ввести имя и фамилию.</p></div>'}</section>${footer()}</div>`;
 }
 
@@ -283,7 +283,7 @@ function finishTest() {
     const user=currentUser(); user.xp=(user.xp||0)+score*2; user.streak=Math.max(1,user.streak||1); user.lastActive=new Date().toISOString(); saveDb();
   }
   testSession=null; selectedAnswer=null;
-  openModal(`<div class="result-screen"><span class="result-badge ${score>=70?"success":"retry"}">${score>=70?"✓":"↗"}</span><div class="eyebrow">${preview?"Предпросмотр завершён":"Результат сохранён"}</div><h2 id="modal-title">${score}%</h2><h3>${score>=80?"Отличный результат!":score>=60?"Хорошая база":"Попробуйте ещё раз"}</h3><p>Правильных ответов: <b>${correct} из ${test.questions.length}</b>${preview?"":"<br>Администратор увидит результат в вашем профиле."}</p><button class="primary full" data-action="close-and-render">Вернуться в кабинет <span>→</span></button></div>`);
+  openModal(`<div class="result-screen"><span class="result-badge ${score>=70?"success":"retry"}">${score>=70?"✓":"↗"}</span><div class="eyebrow">${preview?"Предпросмотр завершён":"Результат сохранён"}</div><h2 id="modal-title">${score}%</h2><h3>${score>=80?"Отличный результат!":score>=60?"Хорошая база":"Попробуйте ещё раз"}</h3><p>Правильных ответов: <b>${correct} из ${test.questions.length}</b>${preview?"":"<br>Результат добавлен в вашу аналитику."}</p><button class="primary full" data-action="close-and-render">Вернуться в кабинет <span>→</span></button></div>`);
 }
 
 function openTestEditor(testId="") {
@@ -319,7 +319,7 @@ function saveTestEditor(form) {
 
 function openUserDetail(userId) {
   const user=db.users.find((item)=>item.id===userId); if(!user)return; const m=userMetrics(user); const attempts=m.attempts.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  openModal(`<div class="user-detail-head"><span class="detail-avatar">${initials(user)}</span><div><div class="eyebrow">Сотрудник Никиты Монастырёва</div><h2 id="modal-title">${escapeHtml(fullName(user))}</h2><p>Профиль создан ${formatDate(user.createdAt)}</p></div></div><div class="detail-metrics"><div><strong>${m.skill}</strong><small>навык</small></div><div><strong>${m.avg}%</strong><small>тесты</small></div><div><strong>${m.courseAvg}%</strong><small>курсы</small></div><div><strong>${m.xp}</strong><small>XP</small></div></div><div class="panel-heading detail-heading"><div><span>История</span><h3>Результаты тестов</h3></div></div>${attempts.length?`<div class="attempt-list">${attempts.map((a)=>`<div><span class="score-dot ${a.score>=70?"good":""}">${a.score}%</span><p><b>${escapeHtml(testById(a.testId)?.title||"Удалённый тест")}</b><small>${formatDate(a.date)} · ${a.correct} из ${a.total}</small></p></div>`).join("")}</div>`:'<div class="empty-state"><b>Тесты ещё не пройдены</b><p>Результаты появятся после первой попытки.</p></div>'}<button class="soft-button full" data-action="close-modal">Закрыть профиль</button>`,true);
+  openModal(`<div class="user-detail-head"><span class="detail-avatar">${initials(user)}</span><div><div class="eyebrow">Профиль сотрудника</div><h2 id="modal-title">${escapeHtml(fullName(user))}</h2><p>Профиль создан ${formatDate(user.createdAt)}</p></div></div><div class="detail-metrics"><div><strong>${m.skill}</strong><small>навык</small></div><div><strong>${m.avg}%</strong><small>тесты</small></div><div><strong>${m.courseAvg}%</strong><small>курсы</small></div><div><strong>${m.xp}</strong><small>XP</small></div></div><div class="panel-heading detail-heading"><div><span>История</span><h3>Результаты тестов</h3></div></div>${attempts.length?`<div class="attempt-list">${attempts.map((a)=>`<div><span class="score-dot ${a.score>=70?"good":""}">${a.score}%</span><p><b>${escapeHtml(testById(a.testId)?.title||"Удалённый тест")}</b><small>${formatDate(a.date)} · ${a.correct} из ${a.total}</small></p></div>`).join("")}</div>`:'<div class="empty-state"><b>Тесты ещё не пройдены</b><p>Результаты появятся после первой попытки.</p></div>'}<button class="soft-button full" data-action="close-modal">Закрыть профиль</button>`,true);
 }
 
 function exportData() {
@@ -351,7 +351,14 @@ document.addEventListener("click",(event)=>{
 });
 
 document.addEventListener("submit",(event)=>{
-  if(event.target.id==="auth-form"){event.preventDefault();const data=new FormData(event.target);login(String(data.get("firstName")),String(data.get("lastName")));}
+  if(event.target.id==="auth-form"){
+    event.preventDefault();
+    const input=event.target.elements.fullName;
+    const parts=String(input.value).trim().split(/\s+/).filter(Boolean);
+    input.setCustomValidity(parts.length<2?"Введите имя и фамилию":"");
+    if(parts.length<2){input.reportValidity();return;}
+    login(parts[0],parts.slice(1).join(" "));
+  }
   if(event.target.id==="test-editor-form"){event.preventDefault();saveTestEditor(event.target);}
 });
 
