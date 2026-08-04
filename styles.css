@@ -1,0 +1,12 @@
+@import url("app/globals.css");
+
+.is-hidden{display:none!important}.toast p{margin:0}.static-note{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted)}
+.static-note:before{content:"";width:7px;height:7px;border-radius:50%;background:#18a769;box-shadow:0 0 0 4px rgba(24,167,105,.12)}
+.empty-state{padding:28px;text-align:center;color:var(--muted);font-size:12px}.course-row.is-hidden{display:none!important}
+.modal-backdrop.is-open{display:grid!important}.toast.is-open{display:flex!important}
+.course-row,.studio-card,.metric-card{font-family:inherit}.panel-heading h3{color:var(--ink)}
+.hero-content .white-button{display:inline-flex;align-items:center}.page-intro .primary{display:inline-flex;align-items:center}
+.team-panel td:first-child>span:last-child{min-width:120px}.answers button{width:100%}
+.site-footer{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding:4px 3px;color:#92959a;font-size:9px}
+.site-footer b{color:#52555a}.local-badge{display:inline-flex;align-items:center;gap:5px;background:#eaf8f1;color:#168457;padding:5px 8px;border-radius:8px;font-weight:800}
+@media(max-width:720px){.site-footer{padding-bottom:6px}.static-note{display:none}}

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#e30613">
+  <meta name="description" content="Линия роста — интерактивная академия телемаркетинга">
+  <meta property="og:title" content="Линия роста — академия телемаркетинга">
+  <meta property="og:description" content="Курсы, практика и аналитика команды в одном пространстве">
+  <meta property="og:image" content="public/og.png">
+  <title>Линия роста — академия телемаркетинга</title>
+  <link rel="icon" href="public/favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="topbar glass">
+      <button class="brand" data-action="home" aria-label="Линия роста — на главную">
+        <span class="brand-mark"><span>↗</span></span>
+        <span><b>ЛИНИЯ</b><strong>РОСТА</strong></span>
+      </button>
+
+      <div class="role-switch" aria-label="Выбор кабинета">
+        <button data-role="employee">Сотрудник</button>
+        <button data-role="organizer">Организатор</button>
+      </div>
+
+      <div class="header-actions">
+        <button class="round-button" data-notify="Новых уведомлений: 3" aria-label="Уведомления"><span class="ui-icon">♢</span><i>3</i></button>
+        <button class="profile-button" data-notify="Профиль Алексея открыт">
+          <span class="avatar">АК</span>
+          <span class="profile-copy"><b>Алексей Ким</b><small id="profile-role">Оператор</small></span>
+          <span>⌄</span>
+        </button>
+      </div>
+    </header>
+
+    <aside class="sidebar glass">
+      <nav id="sidebar-nav"></nav>
+      <div class="sidebar-bottom">
+        <button data-notify="Центр поддержки открыт"><span class="ui-icon">?</span><span>Поддержка</span></button>
+        <div class="mini-profile"><span class="status-dot"></span><span><b>Смена активна</b><small>до 18:00</small></span></div>
+      </div>
+    </aside>
+
+    <main id="dashboard" aria-live="polite"></main>
+
+    <div class="modal-backdrop is-hidden" id="modal-backdrop" role="presentation">
+      <section class="modal glass" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="modal-close" data-action="close-modal" aria-label="Закрыть">×</button>
+        <div id="modal-content"></div>
+      </section>
+    </div>
+
+    <div class="toast is-hidden" id="toast"><span>✓</span><p></p></div>
+  </div>
+  <script src="app.js" defer></script>
+</body>
+</html>
