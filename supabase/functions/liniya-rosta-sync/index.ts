@@ -95,10 +95,18 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json(req, { ok: false, error: "Метод не поддерживается" }, 405);
 
   try {
+    const origin = req.headers.get("origin") || "";
+    if (origin && !ALLOWED_ORIGINS.has(origin)) return json(req, { ok: false, error: "Источник запроса не разрешён" }, 403);
+    const publishableKeys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "{}");
+    const suppliedKey = req.headers.get("apikey") || "";
+    if (!publishableKeys.default || suppliedKey !== publishableKeys.default) {
+      return json(req, { ok: false, error: "Ключ приложения недействителен" }, 401);
+    }
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceRoleKey) throw new Error("Серверная конфигурация Supabase недоступна");
-    const db = createClient(supabaseUrl, serviceRoleKey, {
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    const serverKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serverKey) throw new Error("Серверная конфигурация Supabase недоступна");
+    const db = createClient(supabaseUrl, serverKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const body = await req.json().catch(() => ({}));
