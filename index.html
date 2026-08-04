@@ -6,14 +6,35 @@
   <meta name="theme-color" content="#e30613">
   <meta name="description" content="Линия роста — интерактивная академия телемаркетинга">
   <meta property="og:title" content="Линия роста — академия телемаркетинга">
-  <meta property="og:description" content="Курсы, практика и аналитика команды в одном пространстве">
+  <meta property="og:description" content="Курсы, тесты и персональная аналитика команды">
   <meta property="og:image" content="public/og.png">
   <title>Линия роста — академия телемаркетинга</title>
   <link rel="icon" href="public/favicon.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
+  <section class="auth-screen" id="auth-screen">
+    <div class="auth-glow auth-glow-one"></div>
+    <div class="auth-glow auth-glow-two"></div>
+    <div class="auth-card glass">
+      <div class="auth-brand"><span class="brand-mark"><span>↗</span></span><span><b>ЛИНИЯ</b><strong>РОСТА</strong></span></div>
+      <div class="auth-copy">
+        <span class="eyebrow">Академия телемаркетинга</span>
+        <h1>Ваш рост<br><em>начинается здесь.</em></h1>
+        <p>Введите имя и фамилию. Если профиль уже существует — откроется ваш кабинет, если нет — мы создадим его автоматически.</p>
+      </div>
+      <form class="auth-form" id="auth-form">
+        <label>Имя<input name="firstName" autocomplete="given-name" required placeholder="Например, Алексей"></label>
+        <label>Фамилия<input name="lastName" autocomplete="family-name" required placeholder="Например, Ким"></label>
+        <button class="primary full" type="submit">Открыть мой кабинет <span>→</span></button>
+      </form>
+      <div class="auth-admin"><span>◆</span><p><b>Администратор команды</b><br>Никита Монастырёв</p></div>
+      <small class="auth-hint">Без пароля · данные сохраняются на этом устройстве</small>
+    </div>
+    <div class="auth-visual" aria-hidden="true"><div class="auth-orbit"></div><div class="auth-phone">☎</div><span class="auth-float af-one">✓</span><span class="auth-float af-two">↗</span><span class="auth-float af-three">★</span></div>
+  </section>
+
+  <div class="app-shell is-hidden" id="app-shell">
     <div class="ambient ambient-one"></div>
     <div class="ambient ambient-two"></div>
 
@@ -23,17 +44,14 @@
         <span><b>ЛИНИЯ</b><strong>РОСТА</strong></span>
       </button>
 
-      <div class="role-switch" aria-label="Выбор кабинета">
-        <button data-role="employee">Сотрудник</button>
-        <button data-role="organizer">Организатор</button>
-      </div>
+      <div class="owner-pill"><span class="status-dot"></span><span>Команда</span><b>Никиты Монастырёва</b></div>
 
       <div class="header-actions">
         <button class="round-button" data-notify="Новых уведомлений: 3" aria-label="Уведомления"><span class="ui-icon">♢</span><i>3</i></button>
-        <button class="profile-button" data-notify="Профиль Алексея открыт">
-          <span class="avatar">АК</span>
-          <span class="profile-copy"><b>Алексей Ким</b><small id="profile-role">Оператор</small></span>
-          <span>⌄</span>
+        <button class="profile-button" data-action="switch-user" title="Сменить пользователя">
+          <span class="avatar" id="profile-avatar">АК</span>
+          <span class="profile-copy"><b id="profile-name">Алексей Ким</b><small id="profile-role">Сотрудник</small></span>
+          <span>↪</span>
         </button>
       </div>
     </header>
@@ -42,14 +60,14 @@
       <nav id="sidebar-nav"></nav>
       <div class="sidebar-bottom">
         <button data-notify="Центр поддержки открыт"><span class="ui-icon">?</span><span>Поддержка</span></button>
-        <div class="mini-profile"><span class="status-dot"></span><span><b>Смена активна</b><small>до 18:00</small></span></div>
+        <div class="mini-profile"><span class="status-dot"></span><span><b>Профиль активен</b><small>данные сохранены</small></span></div>
       </div>
     </aside>
 
     <main id="dashboard" aria-live="polite"></main>
 
     <div class="modal-backdrop is-hidden" id="modal-backdrop" role="presentation">
-      <section class="modal glass" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <section class="modal glass" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <button class="modal-close" data-action="close-modal" aria-label="Закрыть">×</button>
         <div id="modal-content"></div>
       </section>
