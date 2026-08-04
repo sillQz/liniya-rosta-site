@@ -3,7 +3,7 @@ const SESSION_KEY = "liniya-rosta-current-user";
 const ADMIN_ID = "admin-nikita-monastyrev";
 const DB_VERSION = 4;
 const CLOUD_API = "https://xukynmdddmujrclzxidr.supabase.co/functions/v1/liniya-rosta-sync";
-const CLOUD_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1a3lubWRkZG11anJjbHp4aWRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4MjQ1NjcsImV4cCI6MjEwMTQwMDU2N30.2jmdTyAg-S7zcIVm0Ufr35hcIIqQIhi0fhlYLOQcPAg";
+const CLOUD_TOKEN = "sb_publishable_aZlczYzhUYuQ9dyXEbZEgQ_KKPrLLU3";
 const LEGACY_TEST_IDS = ["test-strong-call","test-tariffs","test-objections"];
 const COMPETENCY_OPTIONS = ["Контакт","Потребность","Слушание","Диалог","Речь","Возражения","Аргументация","Завершение","Тарифы","Общие знания"];
 
@@ -123,7 +123,7 @@ async function cloudRequest(payload) {
   try {
     response=await fetch(CLOUD_API,{
       method:"POST",
-      headers:{"Content-Type":"application/json",apikey:CLOUD_TOKEN,Authorization:`Bearer ${CLOUD_TOKEN}`},
+      headers:{"Content-Type":"application/json",apikey:CLOUD_TOKEN},
       body:JSON.stringify(payload),
       signal:controller.signal,
     });
