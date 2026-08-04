@@ -29,9 +29,11 @@
       <form class="auth-form" id="auth-form">
         <label>Имя<input name="firstName" autocomplete="given-name" required aria-describedby="name-hint"></label>
         <label>Фамилия<input name="lastName" autocomplete="family-name" required aria-describedby="name-hint"></label>
+        <label class="admin-pin-field is-hidden" id="admin-pin-field">PIN администратора<input name="adminPin" inputmode="numeric" maxlength="8" autocomplete="current-password"></label>
         <button class="primary full" type="submit">Открыть мой кабинет <span>→</span></button>
       </form>
-      <small class="auth-hint" id="name-hint"><span>✓</span> Без пароля · профиль открывается сразу</small>
+      <small class="auth-hint" id="name-hint"><span>✓</span> Сотрудникам пароль не нужен · данные синхронизируются между устройствами</small>
+      <div class="cloud-status" id="cloud-status"><i></i><span>Подключение к общей базе…</span></div>
     </div>
     <div class="auth-visual" aria-hidden="true">
       <div class="auth-orbit"></div>
