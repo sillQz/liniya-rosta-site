@@ -2,9 +2,8 @@ const DB_KEY = "liniya-rosta-db-v2";
 const SESSION_KEY = "liniya-rosta-current-user";
 const ADMIN_ID = "admin-nikita-monastyrev";
 const DB_VERSION = 4;
-const CLOUD_API = "https://api.keyval.org";
-const CLOUD_PREFIX = "liniya-rosta-2026-8f7ad9c1";
-const ADMIN_PIN = "1003";
+const CLOUD_API = "https://xukynmdddmujrclzxidr.supabase.co/functions/v1/liniya-rosta-sync";
+const CLOUD_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1a3lubWRkZG11anJjbHp4aWRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4MjQ1NjcsImV4cCI6MjEwMTQwMDU2N30.2jmdTyAg-S7zcIVm0Ufr35hcIIqQIhi0fhlYLOQcPAg";
 const LEGACY_TEST_IDS = ["test-strong-call","test-tariffs","test-objections"];
 const COMPETENCY_OPTIONS = ["Контакт","Потребность","Слушание","Диалог","Речь","Возражения","Аргументация","Завершение","Тарифы","Общие знания"];
 
@@ -118,87 +117,21 @@ function escapeHtml(value="") {
   return String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
 }
 
-async function keyValueRequest(path,body) {
+async function cloudRequest(payload) {
   const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),12000);
   let response;
-  try { response=await fetch(`${CLOUD_API}/${path}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:controller.signal}); }
-  finally { clearTimeout(timeout); }
+  try {
+    response=await fetch(CLOUD_API,{
+      method:"POST",
+      headers:{"Content-Type":"application/json",apikey:CLOUD_TOKEN,Authorization:`Bearer ${CLOUD_TOKEN}`},
+      body:JSON.stringify(payload),
+      signal:controller.signal,
+    });
+  } finally { clearTimeout(timeout); }
   const data=await response.json().catch(()=>({}));
-  if(!response.ok||data.status!=="SUCCESS")throw new Error("Общая база временно недоступна");
+  if(!response.ok||data.ok!==true)throw new Error(data.error||"Общая база временно недоступна");
+  cloudOnline=true; setCloudStatus("Общая база подключена",true);
   return data;
-}
-
-function encodeCloudDb(value) {
-  const bytes=new TextEncoder().encode(JSON.stringify(value)); let binary="";
-  for(let index=0;index<bytes.length;index+=8192)binary+=String.fromCharCode(...bytes.subarray(index,index+8192));
-  return btoa(binary);
-}
-
-function decodeCloudDb(value) {
-  const binary=atob(value); const bytes=new Uint8Array(binary.length);
-  for(let index=0;index<binary.length;index++)bytes[index]=binary.charCodeAt(index);
-  return JSON.parse(new TextDecoder().decode(bytes));
-}
-
-function emptyCloudDb() {
-  return {version:DB_VERSION,users:[],tests:JSON.parse(JSON.stringify(seedTests)),attempts:[]};
-}
-
-async function readCloudDb() {
-  const manifest=await keyValueRequest("get",{key:`${CLOUD_PREFIX}-manifest`}).catch(()=>null);
-  if(!manifest?.val||!String(manifest.val).includes(":"))return emptyCloudDb();
-  const [revision,countText]=String(manifest.val).split(":"); const count=Number(countText);
-  if(!revision||!Number.isInteger(count)||count<1||count>1000)return emptyCloudDb();
-  const chunks=await Promise.all(Array.from({length:count},(_,index)=>keyValueRequest("get",{key:`${CLOUD_PREFIX}-${revision}-${index}`})));
-  const parsed=decodeCloudDb(chunks.map((item)=>item.val||"").join(""));
-  const tests=new Map(seedTests.map((test)=>[test.id,JSON.parse(JSON.stringify(test))]));
-  (Array.isArray(parsed.tests)?parsed.tests:[]).forEach((test)=>tests.set(test.id,test));
-  return {version:DB_VERSION,users:Array.isArray(parsed.users)?parsed.users:[],tests:[...tests.values()],attempts:Array.isArray(parsed.attempts)?parsed.attempts:[]};
-}
-
-async function writeCloudDb(value) {
-  const stored={...value,tests:(value.tests||[]).filter((test)=>test.id!==seedTests[0].id||JSON.stringify(test)!==JSON.stringify(seedTests[0]))};
-  const encoded=encodeCloudDb(stored); const chunks=encoded.match(/.{1,280}/g)||[""]; const revision=`${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;
-  for(let index=0;index<chunks.length;index++)await keyValueRequest("set",{key:`${CLOUD_PREFIX}-${revision}-${index}`,val:chunks[index]});
-  await keyValueRequest("set",{key:`${CLOUD_PREFIX}-manifest`,val:`${revision}:${chunks.length}`});
-}
-
-function publicCloudSnapshot(remote,userId="") {
-  const leaderboard=remote.users.filter((user)=>user.role!=="admin").map((user)=>({id:user.id,firstName:user.firstName,lastName:user.lastName,xp:user.xp||0}));
-  return {tests:remote.tests,leaderboard,attempts:userId?remote.attempts.filter((attempt)=>attempt.userId===userId):[]};
-}
-
-async function cloudRequest(payload) {
-  let remote=await readCloudDb();
-  if(payload.action==="bootstrap") {
-    cloudOnline=true; setCloudStatus("Общая база подключена",true); return publicCloudSnapshot(remote);
-  }
-  if(payload.action==="login"&&isAdminName(payload.firstName,payload.lastName)) {
-    if(String(payload.pin)!==ADMIN_PIN)throw new Error("Неверный PIN администратора");
-    cloudOnline=true; setCloudStatus("Общая база подключена",true); return {admin:true,db:remote};
-  }
-  if(payload.action==="login") {
-    const key=normalizeName(`${payload.firstName||""} ${payload.lastName||""}`); let user=remote.users.find((item)=>item.role!=="admin"&&normalizeName(fullName(item))===key);
-    const local=payload.localUser&&normalizeName(fullName(payload.localUser))===key?payload.localUser:null;
-    user={...(local||{}),...(user||{}),id:user?.id||local?.id||uid("user"),firstName:String(payload.firstName||"").trim(),lastName:String(payload.lastName||"").trim(),role:"employee",adminId:ADMIN_ID,lastActive:new Date().toISOString(),createdAt:user?.createdAt||local?.createdAt||new Date().toISOString(),xp:user?.xp||local?.xp||0,streak:user?.streak||local?.streak||1,courseProgress:{...(local?.courseProgress||{}),...(user?.courseProgress||{})},assignments:{...(local?.assignments||{}),...(user?.assignments||{})}};
-    remote.users=remote.users.filter((item)=>item.id!==user.id&&normalizeName(fullName(item))!==key); remote.users.push(user);
-    const attempts=new Map(remote.attempts.map((attempt)=>[attempt.id,attempt])); (payload.attempts||[]).forEach((attempt)=>attempts.set(attempt.id,{...attempt,userId:user.id})); remote.attempts=[...attempts.values()];
-    await writeCloudDb(remote); cloudOnline=true; setCloudStatus("Общая база подключена",true); return {user,...publicCloudSnapshot(remote,user.id)};
-  }
-  if(payload.action==="save") {
-    const user=payload.user; const key=normalizeName(fullName(user)); remote.users=remote.users.filter((item)=>item.id!==user.id&&normalizeName(fullName(item))!==key); remote.users.push(user);
-    const attempts=new Map(remote.attempts.map((attempt)=>[attempt.id,attempt])); (payload.attempts||[]).forEach((attempt)=>attempts.set(attempt.id,attempt)); remote.attempts=[...attempts.values()];
-    await writeCloudDb(remote); cloudOnline=true; setCloudStatus("Общая база подключена",true); return {user,...publicCloudSnapshot(remote,user.id)};
-  }
-  if(payload.action==="adminSync") {
-    if(String(payload.pin)!==ADMIN_PIN)throw new Error("Неверный PIN администратора");
-    remote=mergeAdminDatabases(remote,{users:payload.users||[],tests:payload.tests||[],attempts:payload.attempts||[]}); await writeCloudDb(remote); cloudOnline=true; setCloudStatus("Общая база подключена",true); return {admin:true,db:remote};
-  }
-  if(payload.action==="deleteTest") {
-    if(String(payload.pin)!==ADMIN_PIN)throw new Error("Неверный PIN администратора");
-    remote.tests=remote.tests.filter((test)=>test.id!==payload.testId); await writeCloudDb(remote); cloudOnline=true; setCloudStatus("Общая база подключена",true); return {admin:true,db:remote};
-  }
-  throw new Error("Неизвестная операция синхронизации");
 }
 
 function setCloudStatus(message,online=false) {
@@ -294,21 +227,21 @@ async function login(firstName,lastName,pin="") {
     if(adminEntry) {
       adminPin=pin; sessionStorage.setItem("liniya-rosta-admin-pin",pin);
       db=mergeAdminDatabases(db,result.db||{});
-      await writeCloudDb(db); setCloudStatus("Общая база подключена",true);
-      applyCloudDb(db); currentUserId=ADMIN_ID;
+      const synced=await cloudRequest({action:"adminSync",pin,users:db.users,tests:db.tests,attempts:db.attempts});
+      applyCloudDb(synced.db); currentUserId=ADMIN_ID;
     } else {
+      const previousIds=db.users.filter((user)=>user.role!=="admin"&&normalizeName(fullName(user))===key).map((user)=>user.id);
       const existingIndex=db.users.findIndex((user)=>user.id===result.user.id||normalizeName(fullName(user))===key);
       if(existingIndex>=0)db.users[existingIndex]=result.user;else db.users.push(result.user);
       currentUserId=result.user.id; mergeTests(result.tests); mergeLeaderboard(result.leaderboard);
-      db.attempts=[...db.attempts.filter((attempt)=>attempt.userId!==currentUserId),...(result.attempts||[])];
+      db.attempts=[...db.attempts.filter((attempt)=>attempt.userId!==currentUserId&&!previousIds.includes(attempt.userId)),...(result.attempts||[])];
       saveDb(false);
     }
     localStorage.setItem(SESSION_KEY,currentUserId);
     activeSection=currentUser().role==="admin"?"Обзор":"Главная"; showApp();
   } catch(error) {
     if(adminEntry) {
-      if(pin===ADMIN_PIN){cloudOnline=false;setCloudStatus("Работаем локально — синхронизация повторится позже");adminPin=pin;sessionStorage.setItem("liniya-rosta-admin-pin",pin);localLogin(firstName,lastName);queueCloudSync();notify("Админка открыта локально. Синхронизация повторится автоматически.");}
-      else{setCloudStatus(error.message||"Не удалось открыть админку");const pinInput=document.querySelector('input[name="adminPin"]');pinInput.focus();}
+      setCloudStatus(error.message||"Не удалось открыть админку");const pinInput=document.querySelector('input[name="adminPin"]');pinInput.focus();
     } else {
       localLogin(firstName,lastName); queueCloudSync(); notify("Профиль открыт локально. Синхронизация повторится автоматически.");
     }
