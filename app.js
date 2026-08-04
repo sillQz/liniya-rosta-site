@@ -307,10 +307,10 @@ async function login(firstName,lastName,pin="") {
     activeSection=currentUser().role==="admin"?"Обзор":"Главная"; showApp();
   } catch(error) {
     if(adminEntry) {
-      if(pin===ADMIN_PIN){cloudOnline=false;setCloudStatus("Работаем локально — синхронизация повторится позже");adminPin=pin;sessionStorage.setItem("liniya-rosta-admin-pin",pin);localLogin(firstName,lastName);notify("Админка открыта локально. Синхронизация повторится автоматически.");}
+      if(pin===ADMIN_PIN){cloudOnline=false;setCloudStatus("Работаем локально — синхронизация повторится позже");adminPin=pin;sessionStorage.setItem("liniya-rosta-admin-pin",pin);localLogin(firstName,lastName);queueCloudSync();notify("Админка открыта локально. Синхронизация повторится автоматически.");}
       else{setCloudStatus(error.message||"Не удалось открыть админку");const pinInput=document.querySelector('input[name="adminPin"]');pinInput.focus();}
     } else {
-      localLogin(firstName,lastName); notify("Профиль открыт локально. Синхронизация повторится автоматически.");
+      localLogin(firstName,lastName); queueCloudSync(); notify("Профиль открыт локально. Синхронизация повторится автоматически.");
     }
   } finally {
     button.disabled=false; button.innerHTML='Открыть мой кабинет <span>→</span>';
