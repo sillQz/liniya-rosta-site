@@ -119,7 +119,10 @@ function escapeHtml(value="") {
 }
 
 async function keyValueRequest(path,body) {
-  const response=await fetch(`${CLOUD_API}/${path}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),8000);
+  let response;
+  try { response=await fetch(`${CLOUD_API}/${path}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:controller.signal}); }
+  finally { clearTimeout(timeout); }
   const data=await response.json().catch(()=>({}));
   if(!response.ok||data.status!=="SUCCESS")throw new Error("Общая база временно недоступна");
   return data;
@@ -301,8 +304,8 @@ async function login(firstName,lastName,pin="") {
     activeSection=currentUser().role==="admin"?"Обзор":"Главная"; showApp();
   } catch(error) {
     if(adminEntry) {
-      setCloudStatus(error.message||"Не удалось открыть админку");
-      const pinInput=document.querySelector('input[name="adminPin"]'); pinInput.focus();
+      if(pin===ADMIN_PIN){adminPin=pin;sessionStorage.setItem("liniya-rosta-admin-pin",pin);localLogin(firstName,lastName);notify("Админка открыта локально. Синхронизация повторится автоматически.");}
+      else{setCloudStatus(error.message||"Не удалось открыть админку");const pinInput=document.querySelector('input[name="adminPin"]');pinInput.focus();}
     } else {
       localLogin(firstName,lastName); notify("Профиль открыт локально. Синхронизация повторится автоматически.");
     }
