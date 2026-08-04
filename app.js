@@ -119,7 +119,7 @@ function escapeHtml(value="") {
 }
 
 async function keyValueRequest(path,body) {
-  const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),8000);
+  const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),12000);
   let response;
   try { response=await fetch(`${CLOUD_API}/${path}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:controller.signal}); }
   finally { clearTimeout(timeout); }
@@ -159,7 +159,7 @@ async function readCloudDb() {
 async function writeCloudDb(value) {
   const stored={...value,tests:(value.tests||[]).filter((test)=>test.id!==seedTests[0].id||JSON.stringify(test)!==JSON.stringify(seedTests[0]))};
   const encoded=encodeCloudDb(stored); const chunks=encoded.match(/.{1,280}/g)||[""]; const revision=`${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;
-  for(let index=0;index<chunks.length;index+=6)await Promise.all(chunks.slice(index,index+6).map((chunk,offset)=>keyValueRequest("set",{key:`${CLOUD_PREFIX}-${revision}-${index+offset}`,val:chunk})));
+  for(let index=0;index<chunks.length;index++)await keyValueRequest("set",{key:`${CLOUD_PREFIX}-${revision}-${index}`,val:chunks[index]});
   await keyValueRequest("set",{key:`${CLOUD_PREFIX}-manifest`,val:`${revision}:${chunks.length}`});
 }
 
@@ -294,8 +294,8 @@ async function login(firstName,lastName,pin="") {
     if(adminEntry) {
       adminPin=pin; sessionStorage.setItem("liniya-rosta-admin-pin",pin);
       db=mergeAdminDatabases(db,result.db||{});
-      const migrated=await cloudRequest({action:"adminSync",pin,users:db.users,tests:db.tests,attempts:db.attempts});
-      applyCloudDb(migrated.db); currentUserId=ADMIN_ID;
+      await writeCloudDb(db); setCloudStatus("Общая база подключена",true);
+      applyCloudDb(db); currentUserId=ADMIN_ID;
     } else {
       const existingIndex=db.users.findIndex((user)=>user.id===result.user.id||normalizeName(fullName(user))===key);
       if(existingIndex>=0)db.users[existingIndex]=result.user;else db.users.push(result.user);
