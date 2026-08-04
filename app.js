@@ -151,12 +151,15 @@ async function readCloudDb() {
   if(!revision||!Number.isInteger(count)||count<1||count>1000)return emptyCloudDb();
   const chunks=await Promise.all(Array.from({length:count},(_,index)=>keyValueRequest("get",{key:`${CLOUD_PREFIX}-${revision}-${index}`})));
   const parsed=decodeCloudDb(chunks.map((item)=>item.val||"").join(""));
-  return {version:DB_VERSION,users:Array.isArray(parsed.users)?parsed.users:[],tests:Array.isArray(parsed.tests)&&parsed.tests.length?parsed.tests:JSON.parse(JSON.stringify(seedTests)),attempts:Array.isArray(parsed.attempts)?parsed.attempts:[]};
+  const tests=new Map(seedTests.map((test)=>[test.id,JSON.parse(JSON.stringify(test))]));
+  (Array.isArray(parsed.tests)?parsed.tests:[]).forEach((test)=>tests.set(test.id,test));
+  return {version:DB_VERSION,users:Array.isArray(parsed.users)?parsed.users:[],tests:[...tests.values()],attempts:Array.isArray(parsed.attempts)?parsed.attempts:[]};
 }
 
 async function writeCloudDb(value) {
-  const encoded=encodeCloudDb(value); const chunks=encoded.match(/.{1,280}/g)||[""]; const revision=`${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;
-  await Promise.all(chunks.map((chunk,index)=>keyValueRequest("set",{key:`${CLOUD_PREFIX}-${revision}-${index}`,val:chunk})));
+  const stored={...value,tests:(value.tests||[]).filter((test)=>test.id!==seedTests[0].id||JSON.stringify(test)!==JSON.stringify(seedTests[0]))};
+  const encoded=encodeCloudDb(stored); const chunks=encoded.match(/.{1,280}/g)||[""]; const revision=`${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;
+  for(let index=0;index<chunks.length;index+=6)await Promise.all(chunks.slice(index,index+6).map((chunk,offset)=>keyValueRequest("set",{key:`${CLOUD_PREFIX}-${revision}-${index+offset}`,val:chunk})));
   await keyValueRequest("set",{key:`${CLOUD_PREFIX}-manifest`,val:`${revision}:${chunks.length}`});
 }
 
@@ -304,7 +307,7 @@ async function login(firstName,lastName,pin="") {
     activeSection=currentUser().role==="admin"?"Обзор":"Главная"; showApp();
   } catch(error) {
     if(adminEntry) {
-      if(pin===ADMIN_PIN){adminPin=pin;sessionStorage.setItem("liniya-rosta-admin-pin",pin);localLogin(firstName,lastName);notify("Админка открыта локально. Синхронизация повторится автоматически.");}
+      if(pin===ADMIN_PIN){cloudOnline=false;setCloudStatus("Работаем локально — синхронизация повторится позже");adminPin=pin;sessionStorage.setItem("liniya-rosta-admin-pin",pin);localLogin(firstName,lastName);notify("Админка открыта локально. Синхронизация повторится автоматически.");}
       else{setCloudStatus(error.message||"Не удалось открыть админку");const pinInput=document.querySelector('input[name="adminPin"]');pinInput.focus();}
     } else {
       localLogin(firstName,lastName); notify("Профиль открыт локально. Синхронизация повторится автоматически.");
