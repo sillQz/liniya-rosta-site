@@ -27,10 +27,11 @@
         <span><b>01</b> Курсы</span><span><b>02</b> Тесты</span><span><b>03</b> Аналитика</span>
       </div>
       <form class="auth-form" id="auth-form">
-        <label>Имя и фамилия<input name="fullName" autocomplete="name" required placeholder="Например, Монастырёв Никита" aria-describedby="name-hint"></label>
+        <label>Имя<input name="firstName" autocomplete="given-name" required aria-describedby="name-hint"></label>
+        <label>Фамилия<input name="lastName" autocomplete="family-name" required aria-describedby="name-hint"></label>
         <button class="primary full" type="submit">Открыть мой кабинет <span>→</span></button>
       </form>
-      <small class="auth-hint" id="name-hint"><span>✓</span> Без пароля · можно вводить имя и фамилию в любом порядке</small>
+      <small class="auth-hint" id="name-hint"><span>✓</span> Без пароля · профиль открывается сразу</small>
     </div>
     <div class="auth-visual" aria-hidden="true">
       <div class="auth-orbit"></div>
