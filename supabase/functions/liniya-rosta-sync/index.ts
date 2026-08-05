@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ADMIN_ID = "admin-nikita-monastyrev";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const MAX_USERS = 5000;
 const MAX_TESTS = 1000;
 const MAX_COURSES = 1000;
@@ -32,6 +32,15 @@ const asArray = (value: unknown, limit: number) =>
 const cleanText = (value: unknown, max = 120) =>
   String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max);
 
+const cleanLongText = (value: unknown, max = 15000) =>
+  String(value ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim().slice(0, max);
+
+const cleanUrl = (value: unknown) => {
+  const candidate = cleanText(value, 500);
+  if (!candidate) return "";
+  try { const url = new URL(candidate); return ["http:", "https:"].includes(url.protocol) ? url.href : ""; } catch { return ""; }
+};
+
 const normalizeName = (value: unknown) =>
   cleanText(value, 250).toLocaleLowerCase("ru-RU").replaceAll("ё", "е").replace(/\s+/g, " ").trim();
 
@@ -45,6 +54,24 @@ const isAdminName = (firstName: unknown, lastName: unknown) => {
 
 const newId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${crypto.randomUUID().replaceAll("-", "").slice(0, 14)}`;
+
+function cleanDailyMap(value: unknown, includeApplications = false) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(date)).slice(-400).map(([date, raw]) => {
+    const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    return [date, {
+      dialogues: Math.max(0, Math.min(10000, Number(item.dialogues) || 0)),
+      packages: Math.max(0, Math.min(1000, Number(item.packages) || 0)),
+      prospects: Math.max(0, Math.min(10000, Number(item.prospects) || 0)),
+      ...(includeApplications ? { acceptedApplications: Math.max(0, Math.min(1000, Number(item.acceptedApplications) || 0)), updatedAt: cleanText(item.updatedAt, 50) } : {}),
+    }];
+  }));
+}
+
+function cleanLessonProgress(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).slice(0, MAX_COURSES).map(([courseId, lessons]) => [cleanText(courseId, 160), Array.isArray(lessons) ? [...new Set(lessons.map((id) => cleanText(id, 160)).filter(Boolean))].slice(0, 100) : []]).filter(([courseId]) => courseId));
+}
 
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -69,11 +96,14 @@ function employeeUser(input: Record<string, unknown>, id?: string) {
     xp: Math.max(0, Number(input.xp) || 0),
     streak: Math.max(0, Number(input.streak) || 0),
     courseProgress: input.courseProgress && typeof input.courseProgress === "object" ? input.courseProgress : {},
+    lessonProgress: cleanLessonProgress(input.lessonProgress),
     assignments: input.assignments && typeof input.assignments === "object" ? input.assignments : {},
+    dailyPlans: cleanDailyMap(input.dailyPlans),
+    dailyResults: cleanDailyMap(input.dailyResults, true),
   };
 }
 
-function mergeEmployee(existing: Record<string, unknown> | null, incoming: Record<string, unknown>, id: string) {
+function mergeEmployee(existing: Record<string, unknown> | null, incoming: Record<string, unknown>, id: string, allowPlanWrites = false) {
   const base = existing || {};
   const next = employeeUser({ ...base, ...incoming }, id);
   next.createdAt = cleanText(base.createdAt || incoming.createdAt, 50) || new Date().toISOString();
@@ -87,6 +117,22 @@ function mergeEmployee(existing: Record<string, unknown> | null, incoming: Recor
     ...(base.assignments && typeof base.assignments === "object" ? base.assignments : {}),
     ...(incoming.assignments && typeof incoming.assignments === "object" ? incoming.assignments : {}),
   };
+  next.lessonProgress = cleanLessonProgress({
+    ...(base.lessonProgress && typeof base.lessonProgress === "object" ? base.lessonProgress : {}),
+    ...(incoming.lessonProgress && typeof incoming.lessonProgress === "object" ? incoming.lessonProgress : {}),
+  });
+  next.dailyPlans = allowPlanWrites
+    ? cleanDailyMap({
+      ...(base.dailyPlans && typeof base.dailyPlans === "object" ? base.dailyPlans : {}),
+      ...(incoming.dailyPlans && typeof incoming.dailyPlans === "object" ? incoming.dailyPlans : {}),
+    })
+    : cleanDailyMap(base.dailyPlans || incoming.dailyPlans);
+  next.dailyResults = allowPlanWrites
+    ? cleanDailyMap(base.dailyResults || incoming.dailyResults, true)
+    : cleanDailyMap({
+      ...(base.dailyResults && typeof base.dailyResults === "object" ? base.dailyResults : {}),
+      ...(incoming.dailyResults && typeof incoming.dailyResults === "object" ? incoming.dailyResults : {}),
+    }, true);
   return next;
 }
 
@@ -94,15 +140,30 @@ function cleanCourse(input: Record<string, unknown>) {
   const title = cleanText(input.title, 100);
   const description = cleanText(input.description, 500);
   if (!title || !description) throw new Error("Заполните название и описание курса");
+  const lessonItems = asArray(input.lessonItems, 100).map((raw, index) => {
+    const lesson = raw as Record<string, unknown>;
+    const lessonTitle = cleanText(lesson.title, 120);
+    const content = cleanLongText(lesson.content, 15000);
+    if (!lessonTitle || !content) throw new Error(`Заполните название и материал урока ${index + 1}`);
+    return {
+      id: cleanText(lesson.id || newId("lesson"), 160),
+      title: lessonTitle,
+      duration: cleanText(lesson.duration || "7 мин", 30),
+      content,
+      keyPoints: Array.isArray(lesson.keyPoints) ? lesson.keyPoints.map((item) => cleanText(item, 240)).filter(Boolean).slice(0, 12) : [],
+      resourceUrl: cleanUrl(lesson.resourceUrl),
+    };
+  });
   return {
     id: cleanText(input.id || newId("course"), 160),
     number: cleanText(input.number || "01", 4),
     icon: cleanText(input.icon || "▰", 4),
     title,
     category: cleanText(input.category || "Продажи", 50),
-    lessons: Math.max(1, Math.min(100, Number(input.lessons) || 1)),
+    lessons: lessonItems.length || Math.max(1, Math.min(100, Number(input.lessons) || 1)),
     description,
     published: input.published !== false,
+    lessonItems,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -191,12 +252,12 @@ Deno.serve(async (req: Request) => {
       return data;
     }
 
-    async function upsertEmployee(input: Record<string, unknown>) {
+    async function upsertEmployee(input: Record<string, unknown>, allowPlanWrites = false) {
       const normalized = nameOf(input);
       if (!normalized) throw new Error("Укажите имя и фамилию");
       const found = await findUser(normalized);
       const canonicalId = cleanText(found?.id || input.id || newId("user"), 160);
-      const merged = mergeEmployee((found?.data as Record<string, unknown>) || null, input, canonicalId);
+      const merged = mergeEmployee((found?.data as Record<string, unknown>) || null, input, canonicalId, allowPlanWrites);
       const { error } = await db.from("lr_users").upsert({
         id: canonicalId,
         normalized_name: normalized,
@@ -271,7 +332,7 @@ Deno.serve(async (req: Request) => {
           idMap.set(cleanText(user.id, 160), ADMIN_ID);
         } else {
           const previousId = cleanText(user.id, 160);
-          const saved = await upsertEmployee(user);
+          const saved = await upsertEmployee(user, true);
           idMap.set(previousId, String(saved.id));
         }
       }
@@ -314,6 +375,26 @@ Deno.serve(async (req: Request) => {
       if (!testId) throw new Error("Тест не указан");
       const { error } = await db.from("lr_tests").delete().eq("id", testId);
       if (error) throw error;
+      return json(req, { ok: true, admin: true, db: await fullDb() });
+    }
+
+    if (action === "saveEmployeePlan") {
+      await requireAdmin();
+      const userId = cleanText(body?.userId, 160);
+      const date = cleanText(body?.date, 10);
+      if (!userId || userId === ADMIN_ID) throw new Error("Сотрудник не указан");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Укажите дату плана");
+      const { data: row, error: readError } = await db.from("lr_users").select("id,data").eq("id", userId).maybeSingle();
+      if (readError) throw readError;
+      if (!row?.data) throw new Error("Профиль сотрудника не найден");
+      const existing = row.data as Record<string, unknown>;
+      const dailyPlans = {
+        ...(existing.dailyPlans && typeof existing.dailyPlans === "object" ? existing.dailyPlans : {}),
+        [date]: body?.plan && typeof body.plan === "object" ? body.plan : {},
+      };
+      const saved = mergeEmployee(existing, { ...existing, dailyPlans }, userId, true);
+      const { error: saveError } = await db.from("lr_users").update({ data: saved, updated_at: new Date().toISOString() }).eq("id", userId);
+      if (saveError) throw saveError;
       return json(req, { ok: true, admin: true, db: await fullDb() });
     }
 

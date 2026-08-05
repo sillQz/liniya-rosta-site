@@ -1,7 +1,7 @@
 const DB_KEY = "liniya-rosta-db-v2";
 const SESSION_KEY = "liniya-rosta-current-user";
 const ADMIN_ID = "admin-nikita-monastyrev";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const CLOUD_API = "https://xukynmdddmujrclzxidr.supabase.co/functions/v1/liniya-rosta-sync";
 const CLOUD_TOKEN = "sb_publishable_aZlczYzhUYuQ9dyXEbZEgQ_KKPrLLU3";
 const LEGACY_TEST_IDS = ["test-strong-call","test-tariffs","test-objections"];
@@ -10,10 +10,17 @@ const COMPETENCY_OPTIONS = ["Контакт","Потребность","Слуш�
 const employeeNav = [["⌂","Главная"],["▰","Курсы"],["✓","Тесты"],["□","Задания"],["★","Рейтинг"]];
 const adminNav = [["⌂","Обзор"],["▰","Сотрудники"],["✓","Тесты"],["□","Курсы"],["★","Настройки"]];
 
+const demoLessons = [
+  { id:"strong-call-contact", title:"Первые 20 секунд: устанавливаем контакт", duration:"7 мин", content:"Цель начала разговора — не продать услугу за одну фразу, а получить внимание и право продолжить диалог. Представьтесь, назовите компанию и коротко обозначьте пользу звонка.\n\nИспользуйте спокойный темп и одну понятную мысль: «Добрый день, меня зовут Анна, МТС. Звоню, чтобы подобрать более удобный вариант домашнего интернета и связи. Удобно две минуты?»", keyPoints:["Назовите себя и компанию","Обозначьте пользу звонка","Получите согласие на короткий разговор"], resourceUrl:"" },
+  { id:"strong-call-needs", title:"Выявляем потребность вопросами", duration:"9 мин", content:"Сильный оператор не перечисляет все тарифы подряд. Сначала он понимает текущую ситуацию клиента. Начните с открытого вопроса, затем уточните детали и резюмируйте услышанное.\n\nПример: «Как сейчас пользуетесь интернетом дома?» → «Сколько устройств обычно подключено?» → «Правильно понимаю, важнее стабильность вечером и единый платёж?»", keyPoints:["Открытый вопрос запускает диалог","Уточняйте сценарий использования","Резюмируйте потребность словами клиента"], resourceUrl:"" },
+  { id:"strong-call-offer", title:"Презентуем решение через выгоды", duration:"8 мин", content:"Связывайте каждое свойство тарифа с потребностью, которую клиент уже озвучил. Вместо списка характеристик покажите конкретный результат.\n\nФормула: потребность → решение → выгода → проверочный вопрос. Например: «Вы говорили, что вечером интернетом пользуется вся семья. Скорость 500 Мбит/с позволит одновременно смотреть ТВ и работать без зависаний. Такой вариант решит вашу задачу?»", keyPoints:["Не перегружайте характеристиками","Связывайте предложение с потребностью","Завершайте проверочным вопросом"], resourceUrl:"" },
+  { id:"strong-call-close", title:"Фиксируем следующий шаг и заявку", duration:"6 мин", content:"Результативный диалог заканчивается конкретным действием. Коротко повторите согласованные условия, уточните данные и назовите следующий шаг.\n\nПример: «Тогда оформляем интернет и ТВ за указанную стоимость. Сейчас зафиксирую адрес и удобное время подключения, после чего придёт подтверждение заявки». Не оставляйте разговор на неопределённом «подумайте». ", keyPoints:["Повторите выбранное решение","Согласуйте точный следующий шаг","Зафиксируйте заявку и ожидания клиента"], resourceUrl:"" },
+];
+
 const seedCourses = [
-  { id:"strong-call", number:"01", icon:"☎", title:"Сильный звонок", category:"Продажи", lessons:8, description:"Структура результативного разговора: от контакта до заявки.", published:true },
-  { id:"objections", number:"02", icon:"!", title:"Работа с возражениями", category:"Практика", lessons:6, description:"Спокойные и уверенные ответы на самые частые сомнения клиентов.", published:true },
-  { id:"mts-products", number:"03", icon:"◆", title:"Продукты и тарифы", category:"Продукт", lessons:10, description:"Интернет, ТВ, мобильная связь и подбор решения под задачу клиента.", published:true },
+  { id:"strong-call", number:"01", icon:"☎", title:"Сильный звонок", category:"Продажи", lessons:4, description:"Готовый демо-курс: структура результативного разговора от контакта до принятой заявки.", published:true, lessonItems:demoLessons },
+  { id:"objections", number:"02", icon:"!", title:"Работа с возражениями", category:"Практика", lessons:6, description:"Спокойные и уверенные ответы на самые частые сомнения клиентов.", published:true, lessonItems:[] },
+  { id:"mts-products", number:"03", icon:"◆", title:"Продукты и тарифы", category:"Продукт", lessons:10, description:"Интернет, ТВ, мобильная связь и подбор решения под задачу клиента.", published:true, lessonItems:[] },
 ];
 
 const assignments = [
@@ -60,7 +67,7 @@ function uid(prefix="id") {
 }
 
 function adminUser() {
-  return { id:ADMIN_ID, firstName:"Никита", lastName:"Монастырёв", role:"admin", adminId:ADMIN_ID, createdAt:new Date().toISOString(), xp:0, streak:0, courseProgress:{}, assignments:{} };
+  return { id:ADMIN_ID, firstName:"Никита", lastName:"Монастырёв", role:"admin", adminId:ADMIN_ID, createdAt:new Date().toISOString(), xp:0, streak:0, courseProgress:{}, lessonProgress:{}, assignments:{}, dailyPlans:{}, dailyResults:{} };
 }
 
 function defaultDb() {
@@ -77,7 +84,12 @@ function loadDb() {
       parsed.tests=[...JSON.parse(JSON.stringify(seedTests)),...customTests];
       parsed.version=DB_VERSION;
     }
-    if(parsed.version===4){parsed.courses=JSON.parse(JSON.stringify(seedCourses));parsed.version=DB_VERSION;}
+    if(parsed.version===4){parsed.courses=JSON.parse(JSON.stringify(seedCourses));parsed.version=5;}
+    if(parsed.version===5){
+      parsed.courses=(parsed.courses||[]).map((course)=>course.id==="strong-call"&&!Array.isArray(course.lessonItems)?{...course,lessons:demoLessons.length,lessonItems:JSON.parse(JSON.stringify(demoLessons))}:{...course,lessonItems:Array.isArray(course.lessonItems)?course.lessonItems:[]});
+      (parsed.users||[]).forEach((user)=>{user.dailyPlans=user.dailyPlans||{};user.dailyResults=user.dailyResults||{};user.lessonProgress=user.lessonProgress||{};});
+      parsed.version=DB_VERSION;
+    }
     if (parsed.version !== DB_VERSION) return defaultDb();
     if(!Array.isArray(parsed.courses))parsed.courses=JSON.parse(JSON.stringify(seedCourses));
     if (!parsed.users.some((user) => user.id === ADMIN_ID)) parsed.users.unshift(adminUser());
@@ -122,6 +134,10 @@ function escapeHtml(value="") {
   return String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
 }
 
+function safeUrl(value="") {
+  try { const url=new URL(String(value));return ["http:","https:"].includes(url.protocol)?url.href:""; } catch { return ""; }
+}
+
 async function cloudRequest(payload) {
   const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),12000);
   let response;
@@ -161,7 +177,7 @@ function mergeLeaderboard(leaderboard=[]) {
   leaderboard.forEach((summary)=>{
     const existing=db.users.find((user)=>user.id===summary.id||normalizeName(fullName(user))===normalizeName(`${summary.firstName} ${summary.lastName}`));
     if(existing)Object.assign(existing,summary);
-    else db.users.push({...summary,role:"employee",adminId:ADMIN_ID,createdAt:new Date().toISOString(),courseProgress:{},assignments:{}});
+    else db.users.push({...summary,role:"employee",adminId:ADMIN_ID,createdAt:new Date().toISOString(),courseProgress:{},lessonProgress:{},assignments:{},dailyPlans:{},dailyResults:{}});
   });
 }
 
@@ -179,7 +195,7 @@ function mergeAdminDatabases(local,remote) {
   (local.users||[]).forEach((user)=>users.set(normalizeName(fullName(user)),JSON.parse(JSON.stringify(user))));
   (remote.users||[]).forEach((user)=>{
     const key=normalizeName(fullName(user)); const previous=users.get(key)||{};
-    users.set(key,{...previous,...user,courseProgress:{...(previous.courseProgress||{}),...(user.courseProgress||{})},assignments:{...(previous.assignments||{}),...(user.assignments||{})}});
+    users.set(key,{...previous,...user,courseProgress:{...(previous.courseProgress||{}),...(user.courseProgress||{})},lessonProgress:{...(previous.lessonProgress||{}),...(user.lessonProgress||{})},assignments:{...(previous.assignments||{}),...(user.assignments||{})},dailyPlans:{...(previous.dailyPlans||{}),...(user.dailyPlans||{})},dailyResults:{...(previous.dailyResults||{}),...(user.dailyResults||{})}});
   });
   const tests=new Map((local.tests||[]).map((test)=>[test.id,test]));
   (remote.tests||[]).forEach((test)=>tests.set(test.id,test));
@@ -217,7 +233,7 @@ function localLogin(firstName,lastName) {
     const key = normalizeName(`${firstName} ${lastName}`);
     let user = db.users.find((item) => item.role !== "admin" && normalizeName(fullName(item)) === key);
     if (!user) {
-      user = { id:uid("user"), firstName:firstName.trim(), lastName:lastName.trim(), role:"employee", adminId:ADMIN_ID, createdAt:new Date().toISOString(), lastActive:new Date().toISOString(), xp:0, streak:1, courseProgress:{}, assignments:{} };
+      user = { id:uid("user"), firstName:firstName.trim(), lastName:lastName.trim(), role:"employee", adminId:ADMIN_ID, createdAt:new Date().toISOString(), lastActive:new Date().toISOString(), xp:0, streak:1, courseProgress:{}, lessonProgress:{}, assignments:{}, dailyPlans:{}, dailyResults:{} };
       db.users.push(user); saveDb();
     }
     currentUserId = user.id;
@@ -299,14 +315,44 @@ function renderSection() {
   }
 }
 
+function todayKey() { const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`; }
+
+function emptyPlan() { return { dialogues:0, packages:0, prospects:0 }; }
+
+function emptyResult() { return { dialogues:0, packages:0, prospects:0, acceptedApplications:0 }; }
+
+function dailyPlan(user,date=todayKey()) { return {...emptyPlan(),...(user.dailyPlans?.[date]||{})}; }
+
+function dailyResult(user,date=todayKey()) { return {...emptyResult(),...(user.dailyResults?.[date]||{})}; }
+
+function planPercent(plan,result) {
+  const target=Number(plan.dialogues||0)+Number(plan.packages||0)+Number(plan.prospects||0);
+  const actual=Math.min(Number(result.dialogues||0),Number(plan.dialogues||0))+Math.min(Number(result.packages||0),Number(plan.packages||0))+Math.min(Number(result.prospects||0),Number(plan.prospects||0));
+  return target?Math.min(100,Math.round(actual/target*100)):0;
+}
+
+function courseProgressFor(user,course) {
+  const lessons=Array.isArray(course?.lessonItems)?course.lessonItems:[];
+  if(!lessons.length)return Number(user.courseProgress?.[course?.id]||0);
+  const completed=new Set(user.lessonProgress?.[course.id]||[]);
+  return Math.round(lessons.filter((lesson)=>completed.has(lesson.id)).length/lessons.length*100);
+}
+
 function userMetrics(user) {
   const attempts = db.attempts.filter((attempt) => attempt.userId === user.id);
   const avg = attempts.length ? Math.round(attempts.reduce((sum,item) => sum + item.score,0) / attempts.length) : 0;
-  const courseValues = Object.values(user.courseProgress || {});
+  const courseValues = db.courses.map((course)=>courseProgressFor(user,course)).filter((value)=>value>0);
   const courseAvg = courseValues.length ? Math.round(courseValues.reduce((a,b)=>a+b,0)/courseValues.length) : 0;
   const completedAssignments = Object.values(user.assignments || {}).filter(Boolean).length;
   const skill = Math.min(100, Math.round((avg * .6) + (courseAvg * .25) + (completedAssignments * 5)));
-  return { attempts, avg, courseAvg, completedAssignments, skill, xp:user.xp || 0, streak:user.streak || 1 };
+  const plan=dailyPlan(user); const result=dailyResult(user); const planCompletion=planPercent(plan,result);
+  const allResults=Object.values(user.dailyResults||{});
+  const acceptedApplications=allResults.reduce((sum,item)=>sum+Number(item.acceptedApplications||0),0);
+  const dialogues=allResults.reduce((sum,item)=>sum+Number(item.dialogues||0),0);
+  const packages=allResults.reduce((sum,item)=>sum+Number(item.packages||0),0);
+  const prospects=allResults.reduce((sum,item)=>sum+Number(item.prospects||0),0);
+  const activeDays=allResults.filter((item)=>Number(item.dialogues||0)+Number(item.packages||0)+Number(item.prospects||0)+Number(item.acceptedApplications||0)>0).length;
+  return { attempts, avg, courseAvg, completedAssignments, skill, xp:user.xp || 0, streak:user.streak || 1, plan, result, planCompletion, acceptedApplications, dialogues, packages, prospects, activeDays };
 }
 
 const competencyGroups = [
@@ -373,15 +419,32 @@ function footer() {
   return `<footer class="site-footer"><span>Линия роста · обучение и практика в одном пространстве</span><span class="local-badge">✓ Данные сохранены</span></footer>`;
 }
 
+function resultField(name,label,icon,plan,result) {
+  const target=Number(plan[name]||0); const actual=Number(result[name]||0); const percent=target?Math.min(100,Math.round(actual/target*100)):0;
+  return `<label class="plan-result-field"><span class="plan-field-icon">${icon}</span><span><b>${label}</b><small>${target?`план ${target} · ${percent}% выполнено`:"план пока не задан"}</small></span><input type="number" min="0" max="10000" name="${name}" value="${actual}" aria-label="${label}"></label>`;
+}
+
+function employeePlanTracker(user) {
+  const plan=dailyPlan(user); const result=dailyResult(user); const completion=planPercent(plan,result); const hasPlan=Object.values(plan).some(Number);
+  return `<section class="panel daily-plan-panel"><div class="plan-panel-head"><div><span>Сегодня · ${formatDate(todayKey())}</span><h3>Мой рабочий план</h3><p>${hasPlan?"Заполняйте фактический результат — руководитель увидит обновление сразу.":"Руководитель ещё не назначил цели на сегодня. Результаты всё равно можно фиксировать."}</p></div><span class="plan-score" style="--plan:${completion*3.6}deg"><b>${completion}%</b><small>плана</small></span></div><form id="daily-result-form"><div class="plan-result-grid">${resultField("dialogues","Диалоги","☎",plan,result)}${resultField("packages","Пакеты","◆",plan,result)}${resultField("prospects","Потенциальные абоненты","●",plan,result)}</div><div class="application-row"><div><span class="application-icon">✓</span><span><b>Принятые заявки</b><small>Нажимайте кнопку после каждой принятой заявки</small></span></div><strong>${Number(result.acceptedApplications||0)}</strong><button type="button" class="accept-button" data-action="accept-application">＋ Принята заявка</button><button class="primary" type="submit">Сохранить выполнение <span>→</span></button></div></form></section>`;
+}
+
+function planHistory(user) {
+  const dates=Object.keys({...user.dailyPlans,...user.dailyResults}).sort().slice(-7);
+  if(!dates.length)return '<div class="chart-empty">Динамика плана появится после первой записи</div>';
+  return `<div class="plan-history-chart">${dates.map((date)=>{const percent=planPercent(dailyPlan(user,date),dailyResult(user,date));return `<div><b>${percent}%</b><i><u style="height:${Math.max(5,percent)}%"></u></i><small>${date.slice(5).split("-").reverse().join(".")}</small></div>`}).join("")}</div>`;
+}
+
 function employeeHome() {
   const user = currentUser(); const m = userMetrics(user);
   const lastAttempt = m.attempts.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
   return `<div class="dashboard employee-view">
     ${pageIntro("Личный кабинет",`Добрый день, ${escapeHtml(user.firstName)}`,"Ваш персональный план, результаты и ближайшие задачи.",'<button class="search-button" data-nav="Тесты"><span class="ui-icon">⌕</span><span>Найти тест</span><kbd>Ctrl K</kbd></button>')}
     <section class="hero employee-hero"><div class="hero-content"><div class="eyebrow light"><span></span> Демо-тест · Компетенции</div><h2>Знания превращаем<br><em>в уверенный результат.</em></h2><p>Проверьте навыки установления контакта, знания тарифа и ведения диалога.</p><div class="hero-actions"><button class="white-button" data-action="start-test" data-id="test-dialogue-competencies">Начать демо-тест <span>→</span></button><span>10 вопросов · 9 минут</span></div></div><div class="hero-visual" aria-hidden="true"><div class="orbit"></div><div class="orbit orbit-two"></div><div class="phone"><span>●</span><b>☎</b></div><div class="floating-icon fi-one">✓</div><div class="floating-icon fi-two">↗</div></div><div class="hero-progress"><div class="progress-ring" style="--value:${Math.max(20,m.skill)*3.6}deg"><span><b>${m.skill}%</b><small>навык</small></span></div><p>Средний результат<br><b>${m.avg || "нет тестов"}${m.avg?"%":""}</b></p></div></section>
-    <section class="metrics-grid">${metric("◆",m.xp,"баллов опыта",m.xp?"накоплено за обучение":"начните первый тест",m.xp>0)}${metric("✓",`${m.avg}%`,"средний тест",`${m.attempts.length} попыток`,m.avg>=70)}${metric("▰",`${m.courseAvg}%`,"прогресс курсов",`${Object.keys(user.courseProgress||{}).length} активных курсов`,m.courseAvg>0)}${metric("⚡",`${m.streak} дн.`,"серия активности",m.streak>1?"отличный ритм":"первый день")}</section>
+    <section class="metrics-grid employee-metrics">${metric("✓",m.result.acceptedApplications,"заявок сегодня",`${m.acceptedApplications} за всё время`,m.result.acceptedApplications>0)}${metric("↑",`${m.planCompletion}%`,"выполнение плана",m.planCompletion>=100?"цель дня достигнута":"обновляйте результат",m.planCompletion>=100)}${metric("☎",m.result.dialogues,"диалогов сегодня",m.plan.dialogues?`из ${m.plan.dialogues} по плану`:"без плана",m.result.dialogues>=m.plan.dialogues&&m.plan.dialogues>0)}${metric("◆",m.result.packages,"пакетов сегодня",m.plan.packages?`из ${m.plan.packages} по плану`:"без плана",m.result.packages>=m.plan.packages&&m.plan.packages>0)}${metric("●",m.result.prospects,"потенциальных",m.plan.prospects?`из ${m.plan.prospects} по плану`:"без плана",m.result.prospects>=m.plan.prospects&&m.plan.prospects>0)}${metric("▰",`${m.courseAvg}%`,"прогресс курсов",`${m.activeDays} активных дней`,m.courseAvg>0)}${metric("✓",`${m.avg}%`,"средний тест",`${m.attempts.length} попыток`,m.avg>=70)}${metric("◆",m.xp,"баллов опыта","за обучение и практику",m.xp>0)}</section>
+    ${employeePlanTracker(user)}
     <section class="team-analysis-grid"><article class="panel analysis-card"><div class="panel-heading"><div><span>Мои навыки</span><h3>Компетенции</h3></div></div>${competencyBars(user,true)}</article><article class="panel analysis-card"><div class="panel-heading"><div><span>Моя динамика</span><h3>Последние результаты</h3></div></div>${activityBars(user)}</article></section>
-    <div class="content-grid"><section class="panel learning-panel"><div class="panel-heading"><div><span>Быстрый доступ</span><h3>Продолжить обучение</h3></div><button data-nav="Курсы">Все курсы →</button></div><div class="quick-grid"><button class="quick-card" data-nav="Курсы"><span>01</span><div><small>Курс</small><b>Сильный звонок</b><em>${user.courseProgress?.["strong-call"] || 0}% пройдено</em></div><i>→</i></button><button class="quick-card" data-nav="Задания"><span>02</span><div><small>Практика</small><b>Учебный звонок</b><em>${user.assignments?.["audio-call"]?"выполнено":"сдать сегодня"}</em></div><i>→</i></button><button class="quick-card" data-nav="Тесты"><span>03</span><div><small>Демо-тест</small><b>Компетенции и тарифы</b><em>10 вопросов</em></div><i>→</i></button></div></section>
+    <div class="content-grid"><section class="panel learning-panel"><div class="panel-heading"><div><span>Быстрый доступ</span><h3>Продолжить обучение</h3></div><button data-nav="Курсы">Все курсы →</button></div><div class="quick-grid"><button class="quick-card" data-action="open-course" data-id="strong-call"><span>01</span><div><small>Демо-курс · 4 урока</small><b>Сильный звонок</b><em>${courseProgressFor(user,courseById("strong-call"))}% пройдено</em></div><i>→</i></button><button class="quick-card" data-nav="Задания"><span>02</span><div><small>Практика</small><b>Учебный звонок</b><em>${user.assignments?.["audio-call"]?"выполнено":"сдать сегодня"}</em></div><i>→</i></button><button class="quick-card" data-nav="Тесты"><span>03</span><div><small>Демо-тест</small><b>Компетенции и тарифы</b><em>10 вопросов</em></div><i>→</i></button></div></section>
     <section class="panel skill-panel"><div class="panel-heading"><div><span>Последний результат</span><h3>${lastAttempt?escapeHtml(testById(lastAttempt.testId)?.title || "Тест"):"Начните обучение"}</h3></div></div>${lastAttempt?`<div class="result-orb ${lastAttempt.score>=70?"good":"warn"}"><strong>${lastAttempt.score}%</strong><small>${formatDate(lastAttempt.date)}</small></div><p class="result-copy">Правильных ответов: <b>${lastAttempt.correct} из ${lastAttempt.total}</b></p><button class="soft-button" data-action="start-test" data-id="${lastAttempt.testId}">Пройти ещё раз <span>→</span></button>`:`<div class="empty-state"><span class="empty-icon">✓</span><b>Здесь появятся результаты</b><p>Выберите тест и ответьте на вопросы.</p></div>`}</section></div>
     ${footer()}</div>`;
 }
@@ -389,7 +452,7 @@ function employeeHome() {
 function employeeCourses() {
   const user=currentUser();
   return `<div class="dashboard">${pageIntro("Каталог обучения","Курсы","Изучайте материал в удобном темпе — прогресс сохраняется автоматически.")}
-    <div class="catalog-grid">${db.courses.filter((course)=>course.published).map((course)=>{const progress=user.courseProgress?.[course.id]||0;return `<article class="catalog-card panel"><span class="course-art large"><b>${escapeHtml(course.number)}</b><i>${escapeHtml(course.icon)}</i></span><div class="catalog-copy"><small>${escapeHtml(course.category)} · ${course.lessons} уроков</small><h3>${escapeHtml(course.title)}</h3><p>${escapeHtml(course.description)}</p><div class="catalog-progress"><span><i style="width:${progress}%"></i></span><b>${progress}%</b></div><button class="primary" data-action="advance-course" data-id="${course.id}">${progress?"Продолжить":"Начать курс"} <span>→</span></button></div></article>`}).join("")||'<div class="empty-state panel"><span class="empty-icon">▰</span><b>Курсы готовятся</b><p>Администратор скоро опубликует учебные материалы.</p></div>'}</div>${footer()}</div>`;
+    <div class="catalog-grid">${db.courses.filter((course)=>course.published).map((course)=>{const progress=courseProgressFor(user,course);const lessonCount=Array.isArray(course.lessonItems)&&course.lessonItems.length?course.lessonItems.length:course.lessons;return `<article class="catalog-card panel ${course.lessonItems?.length?"course-ready":""}"><span class="course-art large"><b>${escapeHtml(course.number)}</b><i>${escapeHtml(course.icon)}</i>${course.lessonItems?.length?'<em>Материалы готовы</em>':""}</span><div class="catalog-copy"><small>${escapeHtml(course.category)} · ${lessonCount} уроков</small><h3>${escapeHtml(course.title)}</h3><p>${escapeHtml(course.description)}</p><div class="catalog-progress"><span><i style="width:${progress}%"></i></span><b>${progress}%</b></div><button class="primary" data-action="open-course" data-id="${course.id}">${progress?"Продолжить":"Открыть курс"} <span>→</span></button></div></article>`}).join("")||'<div class="empty-state panel"><span class="empty-icon">▰</span><b>Курсы готовятся</b><p>Администратор скоро опубликует учебные материалы.</p></div>'}</div>${footer()}</div>`;
 }
 
 function employeeTests() {
@@ -420,21 +483,34 @@ function adminOverview() {
   const courseAvg=employees.length?Math.round(employees.reduce((sum,user)=>sum+userMetrics(user).courseAvg,0)/employees.length):0;
   const completedAssignments=employees.reduce((sum,user)=>sum+userMetrics(user).completedAssignments,0);
   const teamXp=employees.reduce((sum,user)=>sum+(user.xp||0),0);
+  const todayApplications=employees.reduce((sum,user)=>sum+dailyResult(user).acceptedApplications,0);
+  const todayDialogues=employees.reduce((sum,user)=>sum+dailyResult(user).dialogues,0);
+  const todayPackages=employees.reduce((sum,user)=>sum+dailyResult(user).packages,0);
+  const todayProspects=employees.reduce((sum,user)=>sum+dailyResult(user).prospects,0);
+  const plannedEmployees=employees.filter((user)=>Object.values(dailyPlan(user)).some(Number));
+  const planAverage=plannedEmployees.length?Math.round(plannedEmployees.reduce((sum,user)=>sum+planPercent(dailyPlan(user),dailyResult(user)),0)/plannedEmployees.length):0;
   return `<div class="dashboard organizer-view">${pageIntro("Центр управления","Панель руководителя","Сотрудники, обучение и результаты в одном кабинете.",'<button class="primary" data-nav="Тесты"><span>＋</span> Создать тест</button>')}
     <section class="hero organizer-hero"><div class="hero-content"><div class="eyebrow light"><span></span> Единая команда</div><h2>Видеть прогресс.<br><em>Усиливать каждого.</em></h2><p>Открывайте профиль любого сотрудника, смотрите историю тестов и создавайте новые проверки знаний.</p><button class="white-button" data-nav="Сотрудники">Открыть сотрудников <span>→</span></button></div><div class="team-orbit" aria-hidden="true"><div class="leader">НМ<span>${employees.length}</span></div><div class="person p1">АК</div><div class="person p2">ИМ</div><div class="person p3">МЛ</div><div class="person p4">ДС</div><i class="ring r1"></i><i class="ring r2"></i></div></section>
-    <section class="metrics-grid admin-metrics">${metric("●",employees.length,"сотрудников",`${activeToday} активны сегодня`,employees.length>0)}${metric("◉",activeToday,"активны сегодня",employees.length?`${Math.round(activeToday/employees.length*100)}% команды`:"пока нет данных",activeToday>0)}${metric("✓",`${avg}%`,"средний результат",`${attempts.length} попыток`,avg>=70)}${metric("↑",`${passRate}%`,"успешных тестов","порог прохождения 70%",passRate>=70)}${metric("◎",attempts.length,"всего попыток","история прохождений",attempts.length>0)}${metric("▰",`${courseAvg}%`,"средний прогресс","по активным курсам",courseAvg>0)}${metric("□",completedAssignments,"заданий выполнено","практика команды",completedAssignments>0)}${metric("◆",teamXp,"XP команды",`${db.tests.filter(t=>t.published).length} тест опубликован`,teamXp>0)}</section>
+    <section class="metrics-grid admin-metrics">${metric("●",employees.length,"сотрудников",`${activeToday} активны сегодня`,employees.length>0)}${metric("↑",`${planAverage}%`,"план команды",`${plannedEmployees.length} сотрудников с планом`,planAverage>=80)}${metric("✓",todayApplications,"заявок сегодня","принято командой",todayApplications>0)}${metric("☎",todayDialogues,"диалогов сегодня","фактический результат",todayDialogues>0)}${metric("◆",todayPackages,"пакетов сегодня","оформлено сотрудниками",todayPackages>0)}${metric("◉",todayProspects,"потенциальных","зафиксировано сегодня",todayProspects>0)}${metric("✓",`${avg}%`,"средний тест",`${attempts.length} попыток`,avg>=70)}${metric("▰",`${courseAvg}%`,"прогресс курсов",`${completedAssignments} заданий выполнено`,courseAvg>0)}${metric("↑",`${passRate}%`,"успешных тестов","порог 70%",passRate>=70)}${metric("◆",teamXp,"XP команды",`${db.tests.filter(t=>t.published).length} тестов опубликовано`,teamXp>0)}</section>
     <section class="team-analysis-grid"><article class="panel analysis-card"><div class="panel-heading"><div><span>Карта навыков</span><h3>Компетенции команды</h3></div></div>${scoreBars(teamCompetencies(employees))}</article><article class="panel analysis-card"><div class="panel-heading"><div><span>Динамика</span><h3>Последние результаты</h3></div><button data-action="export-excel">Excel →</button></div>${teamActivityBars(attempts)}</article></section>
     <div class="content-grid organizer-grid"><section class="panel team-panel"><div class="panel-heading"><div><span>Последние профили</span><h3>Сотрудники</h3></div><button data-nav="Сотрудники">Вся команда →</button></div>${employees.length?employeeTable(employees.slice(-5).reverse()):'<div class="empty-state"><span class="empty-icon">◎</span><b>Пока нет сотрудников</b><p>Новый профиль появится здесь после входа по имени и фамилии.</p></div>'}</section><section class="panel funnel-panel"><div class="panel-heading"><div><span>Контент</span><h3>Быстрые действия</h3></div></div><div class="admin-actions"><button data-action="edit-test" data-id=""><span>＋</span><div><b>Создать тест</b><small>Добавить вопросы и ответы</small></div></button><button data-nav="Тесты"><span>✓</span><div><b>Редактировать тесты</b><small>${db.tests.length} материалов</small></div></button><button data-nav="Курсы"><span>▰</span><div><b>Настроить курсы</b><small>${db.courses.length} материалов</small></div></button><button data-nav="Сотрудники"><span>●</span><div><b>Открыть аналитику</b><small>По каждому человеку</small></div></button><button data-action="export-excel"><span>⇩</span><div><b>Выгрузить в Excel</b><small>Сотрудники и результаты</small></div></button></div></section></div>${footer()}</div>`;
 }
 
 function employeeTable(users) {
-  return `<div class="table-scroll"><table><thead><tr><th>Сотрудник</th><th>Навык</th><th>Тесты</th><th>Курсы</th><th>Опыт</th><th></th></tr></thead><tbody>${users.map((user)=>{const m=userMetrics(user);return `<tr><td><span class="table-avatar">${initials(user)}</span><span><b>${escapeHtml(fullName(user))}</b><small>${formatDate(user.createdAt)}</small></span></td><td><b>${m.skill}</b><small>/100</small></td><td><b>${m.avg}%</b><small>${m.attempts.length} попыток</small></td><td><b>${m.courseAvg}%</b></td><td class="up">${m.xp} XP</td><td><div class="card-actions employee-actions"><button data-action="user-detail" data-id="${user.id}">Открыть</button><button class="danger-link" data-action="delete-user" data-id="${user.id}">Удалить</button></div></td></tr>`}).join("")}</tbody></table></div>`;
+  return `<div class="table-scroll"><table><thead><tr><th>Сотрудник</th><th>План</th><th>Заявки</th><th>Диалоги</th><th>Обучение</th><th></th></tr></thead><tbody>${users.map((user)=>{const m=userMetrics(user);return `<tr><td><span class="table-avatar">${initials(user)}</span><span><b>${escapeHtml(fullName(user))}</b><small>${formatDate(user.createdAt)}</small></span></td><td><b>${m.planCompletion}%</b><small>сегодня</small></td><td><b>${m.result.acceptedApplications}</b><small>${m.acceptedApplications} всего</small></td><td><b>${m.result.dialogues}</b><small>из ${m.plan.dialogues||"—"}</small></td><td><b>${m.skill}/100</b><small>курсы ${m.courseAvg}%</small></td><td><div class="card-actions employee-actions"><button data-action="user-detail" data-id="${user.id}">Открыть</button><button class="danger-link" data-action="delete-user" data-id="${user.id}">Удалить</button></div></td></tr>`}).join("")}</tbody></table></div>`;
+}
+
+function employeeCards(users) {
+  return `<div class="employee-card-grid">${users.map((user)=>{const m=userMetrics(user);const lastActive=(user.lastActive||user.createdAt||"").slice(0,10)===todayKey();return `<article class="employee-card panel"><div class="employee-card-head"><span class="employee-card-avatar">${initials(user)}</span><div><span class="employee-status ${lastActive?"online":""}">${lastActive?"Активен сегодня":"Нет активности сегодня"}</span><h3>${escapeHtml(fullName(user))}</h3><small>В команде с ${formatDate(user.createdAt)}</small></div><span class="employee-skill-ring" style="--skill:${m.skill*3.6}deg"><b>${m.skill}</b></span></div><div class="employee-plan-line"><span><b>План на сегодня</b><small>${m.planCompletion}% выполнено</small></span><i><u style="width:${m.planCompletion}%"></u></i></div><div class="employee-stat-grid"><div><strong>${m.result.acceptedApplications}</strong><small>заявок</small></div><div><strong>${m.result.dialogues}<em>/${m.plan.dialogues||"—"}</em></strong><small>диалоги</small></div><div><strong>${m.result.packages}<em>/${m.plan.packages||"—"}</em></strong><small>пакеты</small></div><div><strong>${m.result.prospects}<em>/${m.plan.prospects||"—"}</em></strong><small>потенциальные</small></div><div><strong>${m.avg}%</strong><small>тесты</small></div><div><strong>${m.courseAvg}%</strong><small>курсы</small></div></div><div class="employee-card-actions"><button class="primary" data-action="user-detail" data-id="${user.id}">Профиль и план <span>→</span></button><button class="icon-danger" data-action="delete-user" data-id="${user.id}" aria-label="Удалить сотрудника">×</button></div></article>`}).join("")}</div>`;
 }
 
 function adminEmployees() {
   const employees=db.users.filter((u)=>u.role!=="admin");
-  return `<div class="dashboard">${pageIntro("Команда","Сотрудники","Открывайте профили и отслеживайте прогресс обучения каждого человека.")}
-    <section class="panel directory-panel">${employees.length?employeeTable(employees):'<div class="empty-state"><span class="empty-icon">●</span><b>Список пока пуст</b><p>Попросите сотрудника открыть сайт и ввести имя и фамилию.</p></div>'}</section>${footer()}</div>`;
+  const teamPlan=employees.length?Math.round(employees.reduce((sum,user)=>sum+userMetrics(user).planCompletion,0)/employees.length):0;
+  const applications=employees.reduce((sum,user)=>sum+userMetrics(user).result.acceptedApplications,0);
+  const dialogues=employees.reduce((sum,user)=>sum+userMetrics(user).result.dialogues,0);
+  return `<div class="dashboard">${pageIntro("Команда","Сотрудники","Рабочие планы, заявки, продажи и обучение каждого человека в одном экране.")}
+    <section class="employee-summary-strip"><div><span>↑</span><b>${teamPlan}%</b><small>выполнение плана</small></div><div><span>✓</span><b>${applications}</b><small>заявок сегодня</small></div><div><span>☎</span><b>${dialogues}</b><small>диалогов сегодня</small></div><div><span>●</span><b>${employees.length}</b><small>сотрудников</small></div></section>${employees.length?employeeCards(employees):'<section class="panel directory-panel"><div class="empty-state"><span class="empty-icon">●</span><b>Список пока пуст</b><p>Попросите сотрудника открыть сайт и ввести имя и фамилию.</p></div></section>'}${footer()}</div>`;
 }
 
 function adminTests() {
@@ -444,7 +520,7 @@ function adminTests() {
 
 function adminCourses() {
   return `<div class="dashboard">${pageIntro("Учебная программа","Курсы","Создавайте, настраивайте и публикуйте учебные материалы для команды.",'<button class="primary" data-action="edit-course" data-id=""><span>＋</span> Новый курс</button>')}
-    <div class="catalog-grid">${db.courses.map((course)=>`<article class="catalog-card panel admin-course-card"><span class="course-art large"><b>${escapeHtml(course.number)}</b><i>${escapeHtml(course.icon)}</i></span><div class="catalog-copy"><div class="course-card-meta"><small>${escapeHtml(course.category)} · ${course.lessons} уроков</small><span class="publish-chip ${course.published?"live":""}">${course.published?"Опубликован":"Черновик"}</span></div><h3>${escapeHtml(course.title)}</h3><p>${escapeHtml(course.description)}</p><div class="card-actions course-actions"><button data-action="edit-course" data-id="${course.id}">Настроить</button><button class="danger-link" data-action="delete-course" data-id="${course.id}">Удалить</button></div></div></article>`).join("")||'<div class="empty-state panel"><span class="empty-icon">▰</span><b>Курсов пока нет</b><p>Создайте первый курс для команды.</p></div>'}</div>${footer()}</div>`;
+    <div class="catalog-grid">${db.courses.map((course)=>{const count=course.lessonItems?.length||0;return `<article class="catalog-card panel admin-course-card"><span class="course-art large"><b>${escapeHtml(course.number)}</b><i>${escapeHtml(course.icon)}</i></span><div class="catalog-copy"><div class="course-card-meta"><small>${escapeHtml(course.category)} · ${count||course.lessons} уроков</small><span class="publish-chip ${course.published?"live":""}">${course.published?"Опубликован":"Черновик"}</span></div><h3>${escapeHtml(course.title)}</h3><p>${escapeHtml(course.description)}</p><div class="course-content-status ${count?"ready":""}"><span>${count?"✓":"!"}</span><div><b>${count?`${count} уроков наполнены материалом`:"Материалы ещё не добавлены"}</b><small>${count?"текст, тезисы и ссылки доступны сотрудникам":"откройте настройки и добавьте уроки"}</small></div></div><div class="card-actions course-actions"><button data-action="edit-course" data-id="${course.id}">Настроить уроки</button><button class="danger-link" data-action="delete-course" data-id="${course.id}">Удалить</button></div></div></article>`}).join("")||'<div class="empty-state panel"><span class="empty-icon">▰</span><b>Курсов пока нет</b><p>Создайте первый курс для команды.</p></div>'}</div>${footer()}</div>`;
 }
 
 function adminSettings() {
@@ -527,14 +603,31 @@ function courseById(id) { return db.courses.find((course)=>course.id===id); }
 
 function openCourseEditor(courseId="") {
   const existing=courseId?courseById(courseId):null;
-  courseEditorDraft=existing?JSON.parse(JSON.stringify(existing)):{id:"",number:String(db.courses.length+1).padStart(2,"0"),icon:"▰",title:"",category:"Продажи",lessons:6,description:"",published:true};
-  openModal(`<form id="course-editor-form"><div class="editor-head"><div><div class="eyebrow">Конструктор курсов</div><h2 id="modal-title">${existing?"Настроить":"Новый"} <em>курс</em></h2></div><label class="publish-toggle"><input type="checkbox" name="published" ${courseEditorDraft.published?"checked":""}><span>Опубликовать</span></label></div><div class="course-editor-preview"><span class="course-art large"><b>${escapeHtml(courseEditorDraft.number)}</b><i>${escapeHtml(courseEditorDraft.icon)}</i></span><div><small>Карточка в каталоге</small><b>${escapeHtml(courseEditorDraft.title||"Новый курс")}</b></div></div><div class="form-grid"><label>Название<input name="title" required maxlength="100" value="${escapeHtml(courseEditorDraft.title)}" placeholder="Например, Работа с возражениями"></label><label>Категория<select name="category">${["Продажи","Практика","Продукт","Скрипты","Сервис","Адаптация"].map((category)=>`<option ${category===courseEditorDraft.category?"selected":""}>${category}</option>`).join("")}</select></label><label>Номер<input name="number" required maxlength="4" value="${escapeHtml(courseEditorDraft.number)}" placeholder="01"></label><label>Иконка<input name="icon" required maxlength="4" value="${escapeHtml(courseEditorDraft.icon)}" placeholder="☎"></label><label>Количество уроков<input name="lessons" type="number" min="1" max="100" required value="${courseEditorDraft.lessons}"></label></div><label>Описание<textarea name="description" rows="4" maxlength="500" required placeholder="Чему научится сотрудник">${escapeHtml(courseEditorDraft.description)}</textarea></label><button class="primary full" type="submit">Сохранить курс <span>→</span></button></form>`,true);
+  courseEditorDraft=existing?JSON.parse(JSON.stringify(existing)):{id:"",number:String(db.courses.length+1).padStart(2,"0"),icon:"▰",title:"",category:"Продажи",lessons:1,description:"",published:true,lessonItems:[]};
+  courseEditorDraft.lessonItems=Array.isArray(courseEditorDraft.lessonItems)?courseEditorDraft.lessonItems:[];
+  openModal(`<form id="course-editor-form"><div class="editor-head"><div><div class="eyebrow">Конструктор курсов</div><h2 id="modal-title">${existing?"Настроить":"Новый"} <em>курс</em></h2></div><label class="publish-toggle"><input type="checkbox" name="published" ${courseEditorDraft.published?"checked":""}><span>Опубликовать</span></label></div><div class="course-editor-preview"><span class="course-art large"><b>${escapeHtml(courseEditorDraft.number)}</b><i>${escapeHtml(courseEditorDraft.icon)}</i></span><div><small>Карточка в каталоге</small><b>${escapeHtml(courseEditorDraft.title||"Новый курс")}</b><em>Уроков с материалом: ${courseEditorDraft.lessonItems.length}</em></div></div><div class="form-grid"><label>Название<input name="title" required maxlength="100" value="${escapeHtml(courseEditorDraft.title)}" placeholder="Например, Работа с возражениями"></label><label>Категория<select name="category">${["Продажи","Практика","Продукт","Скрипты","Сервис","Адаптация"].map((category)=>`<option ${category===courseEditorDraft.category?"selected":""}>${category}</option>`).join("")}</select></label><label>Номер<input name="number" required maxlength="4" value="${escapeHtml(courseEditorDraft.number)}" placeholder="01"></label><label>Иконка<input name="icon" required maxlength="4" value="${escapeHtml(courseEditorDraft.icon)}" placeholder="☎"></label></div><label>Описание<textarea name="description" rows="3" maxlength="500" required placeholder="Чему научится сотрудник">${escapeHtml(courseEditorDraft.description)}</textarea></label><div class="lesson-editor-head"><div><small>Содержание курса</small><h3>Уроки и материалы</h3></div><button class="soft-button" type="button" data-action="add-course-lesson">＋ Добавить урок</button></div><div id="course-lessons-editor"></div><button class="primary full" type="submit">Сохранить курс <span>→</span></button></form>`,true);
+  renderCourseLessonsEditor();
+}
+
+function renderCourseLessonsEditor() {
+  const container=document.getElementById("course-lessons-editor"); if(!container||!courseEditorDraft)return;
+  container.innerHTML=courseEditorDraft.lessonItems.length?courseEditorDraft.lessonItems.map((lesson,index)=>`<section class="course-lesson-editor"><div class="lesson-number">${String(index+1).padStart(2,"0")}</div><div class="lesson-editor-body"><div class="lesson-editor-title"><b>Урок ${index+1}</b><button type="button" data-action="remove-course-lesson" data-index="${index}">Удалить</button></div><div class="form-grid"><label>Название урока<input name="lesson${index}title" required maxlength="120" value="${escapeHtml(lesson.title)}" placeholder="Название урока"></label><label>Продолжительность<input name="lesson${index}duration" maxlength="30" value="${escapeHtml(lesson.duration||"")}" placeholder="Например, 8 мин"></label></div><label>Материал урока<textarea name="lesson${index}content" rows="7" maxlength="15000" required placeholder="Добавьте теорию, скрипт, примеры и практические рекомендации">${escapeHtml(lesson.content||"")}</textarea></label><div class="lesson-import-row"><label class="file-import">⇧ Загрузить текстовый файл<input type="file" accept=".txt,.md,text/plain,text/markdown" data-lesson-upload="${index}"></label><small>TXT или Markdown, до 15 000 знаков</small></div><label>Ключевые тезисы <small>каждый с новой строки</small><textarea name="lesson${index}points" rows="3" maxlength="2000" placeholder="Главная мысль урока">${escapeHtml((lesson.keyPoints||[]).join("\n"))}</textarea></label><label>Ссылка на дополнительный материал<input name="lesson${index}url" type="url" maxlength="500" value="${escapeHtml(lesson.resourceUrl||"")}" placeholder="https://..."></label></div></section>`).join(""):'<div class="empty-lessons"><span>▰</span><b>Добавьте первый урок</b><p>В урок можно вставить текст вручную или загрузить файл TXT/Markdown.</p></div>';
+}
+
+function syncCourseDraftFromForm() {
+  const form=document.getElementById("course-editor-form"); if(!form||!courseEditorDraft)return;
+  const data=new FormData(form);
+  courseEditorDraft.lessonItems=courseEditorDraft.lessonItems.map((lesson,index)=>({
+    id:lesson.id||uid("lesson"),title:String(data.get(`lesson${index}title`)??lesson.title).trim(),duration:String(data.get(`lesson${index}duration`)??lesson.duration??"").trim(),content:String(data.get(`lesson${index}content`)??lesson.content??"").trim(),keyPoints:String(data.get(`lesson${index}points`)??(lesson.keyPoints||[]).join("\n")).split("\n").map((item)=>item.trim()).filter(Boolean).slice(0,12),resourceUrl:String(data.get(`lesson${index}url`)??lesson.resourceUrl??"").trim()
+  }));
 }
 
 async function saveCourseEditor(form) {
+  syncCourseDraftFromForm();
   const data=new FormData(form);
-  const saved={id:courseEditorDraft.id||uid("course"),number:String(data.get("number")).trim(),icon:String(data.get("icon")).trim(),title:String(data.get("title")).trim(),category:String(data.get("category")).trim(),lessons:Math.max(1,Math.min(100,Number(data.get("lessons"))||1)),description:String(data.get("description")).trim(),published:data.get("published")==="on",updatedAt:new Date().toISOString()};
+  const saved={id:courseEditorDraft.id||uid("course"),number:String(data.get("number")).trim(),icon:String(data.get("icon")).trim(),title:String(data.get("title")).trim(),category:String(data.get("category")).trim(),lessons:Math.max(1,courseEditorDraft.lessonItems.length),description:String(data.get("description")).trim(),published:data.get("published")==="on",lessonItems:courseEditorDraft.lessonItems,updatedAt:new Date().toISOString()};
   if(!saved.title||!saved.description||!saved.number||!saved.icon){notify("Заполните все поля курса");return;}
+  if(saved.lessonItems.some((lesson)=>!lesson.title||!lesson.content)){notify("Заполните название и материал каждого урока");return;}
   const index=db.courses.findIndex((course)=>course.id===saved.id); if(index>=0)db.courses[index]=saved;else db.courses.unshift(saved); saveDb(false);
   try {
     const result=await cloudRequest({action:"saveCourse",pin:adminPin,course:saved}); applyCloudDb(result.db);
@@ -544,12 +637,22 @@ async function saveCourseEditor(form) {
   }
 }
 
+function openCourse(courseId,lessonId="") {
+  const course=courseById(courseId); if(!course)return;
+  const lessons=Array.isArray(course.lessonItems)?course.lessonItems:[]; const user=currentUser();
+  if(!lessons.length){openModal(`<div class="empty-state"><span class="empty-icon">▰</span><b>Материалы курса готовятся</b><p>Администратор уже создал курс, но ещё не добавил содержание уроков.</p><button class="soft-button" data-action="close-modal">Закрыть</button></div>`);return;}
+  const completed=new Set(user.lessonProgress?.[course.id]||[]); const selected=lessons.find((lesson)=>lesson.id===lessonId)||lessons.find((lesson)=>!completed.has(lesson.id))||lessons[0]; const done=completed.has(selected.id); const progress=courseProgressFor(user,course); const resourceUrl=safeUrl(selected.resourceUrl);
+  openModal(`<div class="course-player"><aside><div class="course-player-brand"><span>${escapeHtml(course.icon)}</span><div><small>${escapeHtml(course.category)}</small><b>${escapeHtml(course.title)}</b></div></div><div class="catalog-progress"><span><i style="width:${progress}%"></i></span><b>${progress}%</b></div><nav>${lessons.map((lesson,index)=>`<button class="${lesson.id===selected.id?"active":""} ${completed.has(lesson.id)?"done":""}" data-action="open-course-lesson" data-course="${course.id}" data-id="${lesson.id}"><span>${completed.has(lesson.id)?"✓":String(index+1).padStart(2,"0")}</span><div><b>${escapeHtml(lesson.title)}</b><small>${escapeHtml(lesson.duration||"Материал")}</small></div></button>`).join("")}</nav></aside><article class="course-player-content"><div class="eyebrow">Урок ${lessons.indexOf(selected)+1} из ${lessons.length} · ${escapeHtml(selected.duration||"самостоятельно")}</div><h2 id="modal-title">${escapeHtml(selected.title)}</h2><div class="lesson-text">${escapeHtml(selected.content).split("\n").filter(Boolean).map((paragraph)=>`<p>${paragraph}</p>`).join("")}</div>${selected.keyPoints?.length?`<section class="lesson-key-points"><b>Главное из урока</b>${selected.keyPoints.map((point)=>`<div><span>✓</span><p>${escapeHtml(point)}</p></div>`).join("")}</section>`:""}${resourceUrl?`<a class="lesson-resource" href="${escapeHtml(resourceUrl)}" target="_blank" rel="noopener">Открыть дополнительный материал ↗</a>`:""}<div class="lesson-actions"><button class="soft-button" data-action="close-modal">Закрыть</button><button class="primary" data-action="complete-course-lesson" data-course="${course.id}" data-id="${selected.id}" ${done?"disabled":""}>${done?"Урок пройден ✓":"Отметить урок пройденным →"}</button></div></article></div>`,true);
+}
+
 function openUserDetail(userId) {
   const user=db.users.find((item)=>item.id===userId); if(!user)return;
   const m=userMetrics(user); const attempts=m.attempts.slice().sort((a,b)=>b.date.localeCompare(a.date));
   const tariff=userCompetencies(user).find((item)=>item.label==="Знание тарифа")||{value:0,total:0};
   openModal(`<div class="user-detail-head"><span class="detail-avatar">${initials(user)}</span><div><div class="eyebrow">Профиль сотрудника</div><h2 id="modal-title">${escapeHtml(fullName(user))}</h2><p>Профиль создан ${formatDate(user.createdAt)} · последнее посещение ${formatDate(user.lastActive||user.createdAt)}</p></div></div>
-    <div class="detail-metrics"><div><strong>${m.skill}</strong><small>общий навык</small></div><div><strong>${m.avg}%</strong><small>тесты</small></div><div><strong>${m.courseAvg}%</strong><small>курсы</small></div><div><strong>${m.xp}</strong><small>XP</small></div></div>
+    <div class="detail-metrics expanded"><div><strong>${m.planCompletion}%</strong><small>план сегодня</small></div><div><strong>${m.result.acceptedApplications}</strong><small>заявок сегодня</small></div><div><strong>${m.result.dialogues}</strong><small>диалогов</small></div><div><strong>${m.result.packages}</strong><small>пакетов</small></div><div><strong>${m.result.prospects}</strong><small>потенциальных</small></div><div><strong>${m.activeDays}</strong><small>активных дней</small></div><div><strong>${m.avg}%</strong><small>тесты</small></div><div><strong>${m.courseAvg}%</strong><small>курсы</small></div></div>
+    <section class="admin-plan-editor"><div class="plan-editor-copy"><span>Индивидуальные цели</span><h3>План сотрудника по дням</h3><p>Выберите дату и назначьте количество диалогов, пакетов и потенциальных абонентов.</p></div><form id="employee-plan-form"><input type="hidden" name="userId" value="${user.id}"><label>Дата<input type="date" name="date" required value="${todayKey()}"></label><label>Диалоги<input type="number" name="dialogues" min="0" max="10000" required value="${m.plan.dialogues}"></label><label>Пакеты<input type="number" name="packages" min="0" max="1000" required value="${m.plan.packages}"></label><label>Потенциальные абоненты<input type="number" name="prospects" min="0" max="10000" required value="${m.plan.prospects}"></label><button class="primary" type="submit">Сохранить план →</button></form></section>
+    <section class="detail-analysis activity-block"><div class="panel-heading"><div><span>Выполнение целей</span><h3>План за последние дни</h3></div><b class="detail-total">${m.acceptedApplications} заявок всего</b></div>${planHistory(user)}</section>
     <div class="employee-analysis-grid"><section class="detail-analysis"><div class="panel-heading"><div><span>Компетенции</span><h3>Карта навыков</h3></div></div>${competencyBars(user)}</section><section class="detail-analysis knowledge-card"><div><span class="knowledge-ring" style="--score:${tariff.value*3.6}deg"><b>${tariff.total?`${tariff.value}%`:"—"}</b><small>тарифы</small></span><h3>Знание тарифа</h3><p>${tariff.total?tariff.value>=80?"Уверенное знание продуктовых решений":tariff.value>=60?"Хорошая база, нужна практика":"Рекомендуется повторить продуктовый курс":"Показатель появится после демо-теста"}</p></div></section></div>
     <section class="detail-analysis activity-block"><div class="panel-heading"><div><span>Динамика</span><h3>Результаты по попыткам</h3></div></div>${activityBars(user)}</section>
     <div class="panel-heading detail-heading"><div><span>История</span><h3>Результаты тестов</h3></div></div>${attempts.length?`<div class="attempt-list">${attempts.map((a)=>`<div><span class="score-dot ${a.score>=70?"good":""}">${a.score}%</span><p><b>${escapeHtml(testById(a.testId)?.title||"Удалённый тест")}</b><small>${formatDate(a.date)} · ${a.correct} из ${a.total}</small></p></div>`).join("")}</div>`:'<div class="empty-state"><b>Тесты ещё не пройдены</b><p>Результаты появятся после первой попытки.</p></div>'}<div class="detail-actions"><button class="danger-button" data-action="delete-user" data-id="${user.id}">Удалить сотрудника</button><button class="soft-button" data-action="close-modal">Закрыть профиль</button></div>`,true);
@@ -570,11 +673,13 @@ function excelSheet(name,headers,rows) {
 
 function exportExcel() {
   const employees=db.users.filter((user)=>user.role!=="admin");
-  const employeeHeaders=["Сотрудник","Дата регистрации","Последний вход","Общий навык","Средний тест","Прогресс курсов","XP",...competencyGroups.map(([label])=>label)];
-  const employeeRows=employees.map((user)=>{const m=userMetrics(user);return [fullName(user),formatDate(user.createdAt),formatDate(user.lastActive||user.createdAt),m.skill,m.avg,m.courseAvg,m.xp,...userCompetencies(user).map((item)=>item.value)];});
+  const employeeHeaders=["Сотрудник","Дата регистрации","Последний вход","План сегодня, %","Заявки сегодня","Диалоги сегодня","Пакеты сегодня","Потенциальные сегодня","Заявки всего","Общий навык","Средний тест","Прогресс курсов","XP",...competencyGroups.map(([label])=>label)];
+  const employeeRows=employees.map((user)=>{const m=userMetrics(user);return [fullName(user),formatDate(user.createdAt),formatDate(user.lastActive||user.createdAt),m.planCompletion,m.result.acceptedApplications,m.result.dialogues,m.result.packages,m.result.prospects,m.acceptedApplications,m.skill,m.avg,m.courseAvg,m.xp,...userCompetencies(user).map((item)=>item.value)];});
   const attemptHeaders=["Сотрудник","Тест","Дата","Результат, %","Правильных","Всего вопросов"];
   const attemptRows=db.attempts.slice().sort((a,b)=>b.date.localeCompare(a.date)).map((attempt)=>{const user=db.users.find((item)=>item.id===attempt.userId);return [user?fullName(user):"Удалённый профиль",testById(attempt.testId)?.title||"Удалённый тест",formatDate(attempt.date),attempt.score,attempt.correct,attempt.total];});
-  const workbook=`<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${excelSheet("Сотрудники",employeeHeaders,employeeRows)}${excelSheet("Результаты тестов",attemptHeaders,attemptRows)}</Workbook>`;
+  const dailyHeaders=["Сотрудник","Дата","План диалогов","Факт диалогов","План пакетов","Факт пакетов","План потенциальных","Факт потенциальных","Принято заявок","Выполнение плана, %"];
+  const dailyRows=employees.flatMap((user)=>Object.keys({...user.dailyPlans,...user.dailyResults}).sort().map((date)=>{const plan=dailyPlan(user,date);const result=dailyResult(user,date);return [fullName(user),date,plan.dialogues,result.dialogues,plan.packages,result.packages,plan.prospects,result.prospects,result.acceptedApplications,planPercent(plan,result)];}));
+  const workbook=`<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${excelSheet("Сотрудники",employeeHeaders,employeeRows)}${excelSheet("Планы по дням",dailyHeaders,dailyRows)}${excelSheet("Результаты тестов",attemptHeaders,attemptRows)}</Workbook>`;
   const blob=new Blob(["\ufeff",workbook],{type:"application/vnd.ms-excel"}); const url=URL.createObjectURL(blob); const link=document.createElement("a"); link.href=url; link.download=`liniya-rosta-report-${new Date().toISOString().slice(0,10)}.xls`; link.click(); URL.revokeObjectURL(url); notify("Отчёт Excel скачан");
 }
 
@@ -591,12 +696,18 @@ document.addEventListener("click",async(event)=>{
   if(action==="start-test")startTest(id,false);
   if(action==="preview-test")startTest(id,true);
   if(action==="next-question"){testSession.answers[testSession.index]=selectedAnswer;if(testSession.index===testById(testSession.testId).questions.length-1)finishTest();else{testSession.index++;selectedAnswer=null;renderTestQuestion();}}
+  if(action==="accept-application"){const user=currentUser();user.dailyResults=user.dailyResults||{};const result=dailyResult(user);result.acceptedApplications=Number(result.acceptedApplications||0)+1;result.updatedAt=new Date().toISOString();user.dailyResults[todayKey()]=result;user.lastActive=new Date().toISOString();saveDb();renderSection();notify("Заявка добавлена в результат дня");}
+  if(action==="open-course")openCourse(id);
+  if(action==="open-course-lesson")openCourse(target.dataset.course,id);
+  if(action==="complete-course-lesson"){const user=currentUser();const courseId=target.dataset.course;user.lessonProgress=user.lessonProgress||{};const completed=new Set(user.lessonProgress[courseId]||[]);if(!completed.has(id)){completed.add(id);user.lessonProgress[courseId]=[...completed];user.courseProgress=user.courseProgress||{};user.courseProgress[courseId]=courseProgressFor(user,courseById(courseId));user.xp=(user.xp||0)+25;user.lastActive=new Date().toISOString();saveDb();notify("Урок пройден — начислено 25 XP");}openCourse(courseId,id);}
   if(action==="advance-course"){const user=currentUser();user.courseProgress=user.courseProgress||{};user.courseProgress[id]=Math.min(100,(user.courseProgress[id]||0)+15);user.xp=(user.xp||0)+30;user.lastActive=new Date().toISOString();saveDb();renderSection();notify(`Прогресс курса: ${user.courseProgress[id]}%`);}
   if(action==="toggle-assignment"){const user=currentUser();user.assignments=user.assignments||{};const was=!!user.assignments[id];user.assignments[id]=!was;const item=assignments.find((a)=>a.id===id);user.xp=Math.max(0,(user.xp||0)+(was?-item.points:item.points));saveDb();renderSection();notify(was?"Задание возвращено в работу":"Задание выполнено — XP начислены");}
   if(action==="edit-test")openTestEditor(id);
   if(action==="add-question"){syncEditorDraftFromForm();editorDraft.questions.push({competency:"Контакт",text:"",options:["","",""],correct:0});renderEditorQuestions();}
   if(action==="remove-question"){syncEditorDraftFromForm();const index=Number(target.dataset.index);editorDraft.questions.splice(index,1);renderEditorQuestions();}
   if(action==="edit-course")openCourseEditor(id);
+  if(action==="add-course-lesson"){syncCourseDraftFromForm();courseEditorDraft.lessonItems.push({id:uid("lesson"),title:"",duration:"7 мин",content:"",keyPoints:[],resourceUrl:""});renderCourseLessonsEditor();}
+  if(action==="remove-course-lesson"){syncCourseDraftFromForm();courseEditorDraft.lessonItems.splice(Number(target.dataset.index),1);renderCourseLessonsEditor();}
   if(action==="delete-course"){pendingDeleteCourseId=id;const course=courseById(id);if(course)openModal(`<div class="confirm-screen"><span class="result-badge retry">!</span><div class="eyebrow">Подтверждение</div><h2 id="modal-title">Удалить курс?</h2><p>«${escapeHtml(course.title)}» исчезнет из каталога. Уже набранный сотрудниками прогресс останется в их аналитике.</p><div class="confirm-actions"><button class="soft-button" data-action="close-modal">Отмена</button><button class="primary" data-action="confirm-delete-course">Удалить</button></div></div>`);}
   if(action==="confirm-delete-course"){const deletedId=pendingDeleteCourseId;try{const result=await cloudRequest({action:"deleteCourse",pin:adminPin,courseId:deletedId});applyCloudDb(result.db);pendingDeleteCourseId=null;closeModal();renderSection();notify("Курс удалён");}catch(error){notify(error.message||"Не удалось удалить курс");}}
   if(action==="delete-test"){pendingDeleteTestId=id;const test=testById(id);openModal(`<div class="confirm-screen"><span class="result-badge retry">!</span><div class="eyebrow">Подтверждение</div><h2 id="modal-title">Удалить тест?</h2><p>«${escapeHtml(test.title)}» исчезнет из каталога. Уже сохранённые результаты сотрудников останутся в истории.</p><div class="confirm-actions"><button class="soft-button" data-action="close-modal">Отмена</button><button class="primary" data-action="confirm-delete-test">Удалить</button></div></div>`);}
@@ -616,6 +727,14 @@ document.addEventListener("submit",async(event)=>{
   }
   if(event.target.id==="test-editor-form"){event.preventDefault();saveTestEditor(event.target);}
   if(event.target.id==="course-editor-form"){event.preventDefault();await saveCourseEditor(event.target);}
+  if(event.target.id==="daily-result-form"){event.preventDefault();const data=new FormData(event.target);const user=currentUser();user.dailyResults=user.dailyResults||{};const previous=dailyResult(user);user.dailyResults[todayKey()]={...previous,dialogues:Math.max(0,Number(data.get("dialogues"))||0),packages:Math.max(0,Number(data.get("packages"))||0),prospects:Math.max(0,Number(data.get("prospects"))||0),updatedAt:new Date().toISOString()};user.lastActive=new Date().toISOString();saveDb();renderSection();notify("Выполнение плана сохранено");}
+  if(event.target.id==="employee-plan-form"){event.preventDefault();const data=new FormData(event.target);const userId=String(data.get("userId"));const date=String(data.get("date"));const plan={dialogues:Math.max(0,Number(data.get("dialogues"))||0),packages:Math.max(0,Number(data.get("packages"))||0),prospects:Math.max(0,Number(data.get("prospects"))||0)};try{const result=await cloudRequest({action:"saveEmployeePlan",pin:adminPin,userId,date,plan});applyCloudDb(result.db);openUserDetail(userId);renderSection();notify("Индивидуальный план сохранён");}catch(error){notify(error.message||"Не удалось сохранить план");}}
+});
+
+document.addEventListener("change",async(event)=>{
+  const upload=event.target.closest("[data-lesson-upload]");
+  if(upload&&upload.files?.[0]){const index=Number(upload.dataset.lessonUpload);const file=upload.files[0];if(file.size>100000){notify("Файл слишком большой — максимум 100 КБ");upload.value="";return;}const content=(await file.text()).slice(0,15000);syncCourseDraftFromForm();courseEditorDraft.lessonItems[index].content=content;renderCourseLessonsEditor();notify(`Материал из «${file.name}» загружен`);return;}
+  if(event.target.matches('#employee-plan-form input[name="date"]')){const form=event.target.form;const user=db.users.find((item)=>item.id===form.elements.userId.value);const plan=dailyPlan(user,event.target.value);form.elements.dialogues.value=plan.dialogues;form.elements.packages.value=plan.packages;form.elements.prospects.value=plan.prospects;}
 });
 
 document.getElementById("modal-backdrop").addEventListener("click",(event)=>{if(event.target.id==="modal-backdrop")closeModal();});
