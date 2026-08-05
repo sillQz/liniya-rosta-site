@@ -1,7 +1,7 @@
 const DB_KEY = "liniya-rosta-db-v2";
 const SESSION_KEY = "liniya-rosta-current-user";
 const ADMIN_ID = "admin-nikita-monastyrev";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const CLOUD_API = "https://xukynmdddmujrclzxidr.supabase.co/functions/v1/liniya-rosta-sync";
 const CLOUD_TOKEN = "sb_publishable_aZlczYzhUYuQ9dyXEbZEgQ_KKPrLLU3";
 const LEGACY_TEST_IDS = ["test-strong-call","test-tariffs","test-objections"];
@@ -10,10 +10,10 @@ const COMPETENCY_OPTIONS = ["Контакт","Потребность","Слуш�
 const employeeNav = [["⌂","Главная"],["▰","Курсы"],["✓","Тесты"],["□","Задания"],["★","Рейтинг"]];
 const adminNav = [["⌂","Обзор"],["▰","Сотрудники"],["✓","Тесты"],["□","Курсы"],["★","Настройки"]];
 
-const courses = [
-  { id:"strong-call", number:"01", icon:"☎", title:"Сильный звонок", category:"Продажи", lessons:8, description:"Структура результативного разговора: от контакта до заявки." },
-  { id:"objections", number:"02", icon:"!", title:"Работа с возражениями", category:"Практика", lessons:6, description:"Спокойные и уверенные ответы на самые частые сомнения клиентов." },
-  { id:"mts-products", number:"03", icon:"◆", title:"Продукты и тарифы", category:"Продукт", lessons:10, description:"Интернет, ТВ, мобильная связь и подбор решения под задачу клиента." },
+const seedCourses = [
+  { id:"strong-call", number:"01", icon:"☎", title:"Сильный звонок", category:"Продажи", lessons:8, description:"Структура результативного разговора: от контакта до заявки.", published:true },
+  { id:"objections", number:"02", icon:"!", title:"Работа с возражениями", category:"Практика", lessons:6, description:"Спокойные и уверенные ответы на самые частые сомнения клиентов.", published:true },
+  { id:"mts-products", number:"03", icon:"◆", title:"Продукты и тарифы", category:"Продукт", lessons:10, description:"Интернет, ТВ, мобильная связь и подбор решения под задачу клиента.", published:true },
 ];
 
 const assignments = [
@@ -48,6 +48,9 @@ let testSession = null;
 let selectedAnswer = null;
 let editorDraft = null;
 let pendingDeleteTestId = null;
+let courseEditorDraft = null;
+let pendingDeleteCourseId = null;
+let pendingDeleteUserId = null;
 let adminPin = sessionStorage.getItem("liniya-rosta-admin-pin") || "";
 let cloudSyncTimer = null;
 let cloudOnline = false;
@@ -61,7 +64,7 @@ function adminUser() {
 }
 
 function defaultDb() {
-  return { version:DB_VERSION, users:[adminUser()], tests:JSON.parse(JSON.stringify(seedTests)), attempts:[] };
+  return { version:DB_VERSION, users:[adminUser()], tests:JSON.parse(JSON.stringify(seedTests)), courses:JSON.parse(JSON.stringify(seedCourses)), attempts:[] };
 }
 
 function loadDb() {
@@ -73,10 +76,12 @@ function loadDb() {
       const customTests=(parsed.tests||[]).filter((test)=>!builtInIds.includes(test.id));
       parsed.tests=[...JSON.parse(JSON.stringify(seedTests)),...customTests];
       parsed.version=DB_VERSION;
-      localStorage.setItem(DB_KEY,JSON.stringify(parsed));
     }
+    if(parsed.version===4){parsed.courses=JSON.parse(JSON.stringify(seedCourses));parsed.version=DB_VERSION;}
     if (parsed.version !== DB_VERSION) return defaultDb();
+    if(!Array.isArray(parsed.courses))parsed.courses=JSON.parse(JSON.stringify(seedCourses));
     if (!parsed.users.some((user) => user.id === ADMIN_ID)) parsed.users.unshift(adminUser());
+    localStorage.setItem(DB_KEY,JSON.stringify(parsed));
     return parsed;
   } catch { return defaultDb(); }
 }
@@ -148,6 +153,10 @@ function mergeTests(remoteTests=[]) {
   db.tests=[...merged.values()];
 }
 
+function mergeCourses(remoteCourses=[]) {
+  if(Array.isArray(remoteCourses))db.courses=remoteCourses.map((course)=>JSON.parse(JSON.stringify(course)));
+}
+
 function mergeLeaderboard(leaderboard=[]) {
   leaderboard.forEach((summary)=>{
     const existing=db.users.find((user)=>user.id===summary.id||normalizeName(fullName(user))===normalizeName(`${summary.firstName} ${summary.lastName}`));
@@ -158,9 +167,10 @@ function mergeLeaderboard(leaderboard=[]) {
 
 function applyCloudDb(remote) {
   if(!remote)return;
-  db={version:DB_VERSION,users:Array.isArray(remote.users)?remote.users:[],tests:Array.isArray(remote.tests)?remote.tests:[],attempts:Array.isArray(remote.attempts)?remote.attempts:[]};
+  db={version:DB_VERSION,users:Array.isArray(remote.users)?remote.users:[],tests:Array.isArray(remote.tests)?remote.tests:[],courses:Array.isArray(remote.courses)?remote.courses:[],attempts:Array.isArray(remote.attempts)?remote.attempts:[]};
   if(!db.users.some((user)=>user.id===ADMIN_ID))db.users.unshift(adminUser());
   if(!db.tests.length)db.tests=JSON.parse(JSON.stringify(seedTests));
+  if(!Array.isArray(remote.courses))db.courses=JSON.parse(JSON.stringify(seedCourses));
   saveDb(false);
 }
 
@@ -174,9 +184,10 @@ function mergeAdminDatabases(local,remote) {
   const tests=new Map((local.tests||[]).map((test)=>[test.id,test]));
   (remote.tests||[]).forEach((test)=>tests.set(test.id,test));
   if(!tests.has(seedTests[0].id))tests.set(seedTests[0].id,JSON.parse(JSON.stringify(seedTests[0])));
+  const courses=Array.isArray(remote.courses)?remote.courses.map((course)=>JSON.parse(JSON.stringify(course))):(local.courses||[]).map((course)=>JSON.parse(JSON.stringify(course)));
   const attempts=new Map((local.attempts||[]).map((attempt)=>[attempt.id,attempt]));
   (remote.attempts||[]).forEach((attempt)=>attempts.set(attempt.id,attempt));
-  return {version:DB_VERSION,users:[...users.values()],tests:[...tests.values()],attempts:[...attempts.values()]};
+  return {version:DB_VERSION,users:[...users.values()],tests:[...tests.values()],courses,attempts:[...attempts.values()]};
 }
 
 function queueCloudSync() {
@@ -189,11 +200,11 @@ async function syncCurrentState() {
   const user=currentUser(); if(!user)return;
   try {
     if(user.role==="admin"&&adminPin) {
-      const result=await cloudRequest({action:"adminSync",pin:adminPin,users:db.users,tests:db.tests,attempts:db.attempts});
+      const result=await cloudRequest({action:"adminSync",pin:adminPin,users:db.users,tests:db.tests,courses:db.courses,attempts:db.attempts});
       applyCloudDb(result.db);
     } else if(user.role!=="admin") {
       const result=await cloudRequest({action:"save",user,attempts:db.attempts.filter((attempt)=>attempt.userId===user.id)});
-      mergeTests(result.tests); mergeLeaderboard(result.leaderboard);
+      mergeTests(result.tests); mergeCourses(result.courses); mergeLeaderboard(result.leaderboard);
       db.attempts=[...db.attempts.filter((attempt)=>attempt.userId!==user.id),...(result.attempts||[])];
       saveDb(false);
     }
@@ -227,13 +238,13 @@ async function login(firstName,lastName,pin="") {
     if(adminEntry) {
       adminPin=pin; sessionStorage.setItem("liniya-rosta-admin-pin",pin);
       db=mergeAdminDatabases(db,result.db||{});
-      const synced=await cloudRequest({action:"adminSync",pin,users:db.users,tests:db.tests,attempts:db.attempts});
+      const synced=await cloudRequest({action:"adminSync",pin,users:db.users,tests:db.tests,courses:db.courses,attempts:db.attempts});
       applyCloudDb(synced.db); currentUserId=ADMIN_ID;
     } else {
       const previousIds=db.users.filter((user)=>user.role!=="admin"&&normalizeName(fullName(user))===key).map((user)=>user.id);
       const existingIndex=db.users.findIndex((user)=>user.id===result.user.id||normalizeName(fullName(user))===key);
       if(existingIndex>=0)db.users[existingIndex]=result.user;else db.users.push(result.user);
-      currentUserId=result.user.id; mergeTests(result.tests); mergeLeaderboard(result.leaderboard);
+      currentUserId=result.user.id; mergeTests(result.tests); mergeCourses(result.courses); mergeLeaderboard(result.leaderboard);
       db.attempts=[...db.attempts.filter((attempt)=>attempt.userId!==currentUserId&&!previousIds.includes(attempt.userId)),...(result.attempts||[])];
       saveDb(false);
     }
@@ -378,7 +389,7 @@ function employeeHome() {
 function employeeCourses() {
   const user=currentUser();
   return `<div class="dashboard">${pageIntro("Каталог обучения","Курсы","Изучайте материал в удобном темпе — прогресс сохраняется автоматически.")}
-    <div class="catalog-grid">${courses.map((course)=>{const progress=user.courseProgress?.[course.id]||0;return `<article class="catalog-card panel"><span class="course-art large"><b>${course.number}</b><i>${course.icon}</i></span><div class="catalog-copy"><small>${course.category} · ${course.lessons} уроков</small><h3>${course.title}</h3><p>${course.description}</p><div class="catalog-progress"><span><i style="width:${progress}%"></i></span><b>${progress}%</b></div><button class="primary" data-action="advance-course" data-id="${course.id}">${progress?"Продолжить":"Начать курс"} <span>→</span></button></div></article>`}).join("")}</div>${footer()}</div>`;
+    <div class="catalog-grid">${db.courses.filter((course)=>course.published).map((course)=>{const progress=user.courseProgress?.[course.id]||0;return `<article class="catalog-card panel"><span class="course-art large"><b>${escapeHtml(course.number)}</b><i>${escapeHtml(course.icon)}</i></span><div class="catalog-copy"><small>${escapeHtml(course.category)} · ${course.lessons} уроков</small><h3>${escapeHtml(course.title)}</h3><p>${escapeHtml(course.description)}</p><div class="catalog-progress"><span><i style="width:${progress}%"></i></span><b>${progress}%</b></div><button class="primary" data-action="advance-course" data-id="${course.id}">${progress?"Продолжить":"Начать курс"} <span>→</span></button></div></article>`}).join("")||'<div class="empty-state panel"><span class="empty-icon">▰</span><b>Курсы готовятся</b><p>Администратор скоро опубликует учебные материалы.</p></div>'}</div>${footer()}</div>`;
 }
 
 function employeeTests() {
@@ -413,11 +424,11 @@ function adminOverview() {
     <section class="hero organizer-hero"><div class="hero-content"><div class="eyebrow light"><span></span> Единая команда</div><h2>Видеть прогресс.<br><em>Усиливать каждого.</em></h2><p>Открывайте профиль любого сотрудника, смотрите историю тестов и создавайте новые проверки знаний.</p><button class="white-button" data-nav="Сотрудники">Открыть сотрудников <span>→</span></button></div><div class="team-orbit" aria-hidden="true"><div class="leader">НМ<span>${employees.length}</span></div><div class="person p1">АК</div><div class="person p2">ИМ</div><div class="person p3">МЛ</div><div class="person p4">ДС</div><i class="ring r1"></i><i class="ring r2"></i></div></section>
     <section class="metrics-grid admin-metrics">${metric("●",employees.length,"сотрудников",`${activeToday} активны сегодня`,employees.length>0)}${metric("◉",activeToday,"активны сегодня",employees.length?`${Math.round(activeToday/employees.length*100)}% команды`:"пока нет данных",activeToday>0)}${metric("✓",`${avg}%`,"средний результат",`${attempts.length} попыток`,avg>=70)}${metric("↑",`${passRate}%`,"успешных тестов","порог прохождения 70%",passRate>=70)}${metric("◎",attempts.length,"всего попыток","история прохождений",attempts.length>0)}${metric("▰",`${courseAvg}%`,"средний прогресс","по активным курсам",courseAvg>0)}${metric("□",completedAssignments,"заданий выполнено","практика команды",completedAssignments>0)}${metric("◆",teamXp,"XP команды",`${db.tests.filter(t=>t.published).length} тест опубликован`,teamXp>0)}</section>
     <section class="team-analysis-grid"><article class="panel analysis-card"><div class="panel-heading"><div><span>Карта навыков</span><h3>Компетенции команды</h3></div></div>${scoreBars(teamCompetencies(employees))}</article><article class="panel analysis-card"><div class="panel-heading"><div><span>Динамика</span><h3>Последние результаты</h3></div><button data-action="export-excel">Excel →</button></div>${teamActivityBars(attempts)}</article></section>
-    <div class="content-grid organizer-grid"><section class="panel team-panel"><div class="panel-heading"><div><span>Последние профили</span><h3>Сотрудники</h3></div><button data-nav="Сотрудники">Вся команда →</button></div>${employees.length?employeeTable(employees.slice(-5).reverse()):'<div class="empty-state"><span class="empty-icon">◎</span><b>Пока нет сотрудников</b><p>Новый профиль появится здесь после входа по имени и фамилии.</p></div>'}</section><section class="panel funnel-panel"><div class="panel-heading"><div><span>Контент</span><h3>Быстрые действия</h3></div></div><div class="admin-actions"><button data-action="edit-test" data-id=""><span>＋</span><div><b>Создать тест</b><small>Добавить вопросы и ответы</small></div></button><button data-nav="Тесты"><span>✓</span><div><b>Редактировать тесты</b><small>${db.tests.length} материалов</small></div></button><button data-nav="Сотрудники"><span>●</span><div><b>Открыть аналитику</b><small>По каждому человеку</small></div></button><button data-action="export-excel"><span>⇩</span><div><b>Выгрузить в Excel</b><small>Сотрудники и результаты</small></div></button></div></section></div>${footer()}</div>`;
+    <div class="content-grid organizer-grid"><section class="panel team-panel"><div class="panel-heading"><div><span>Последние профили</span><h3>Сотрудники</h3></div><button data-nav="Сотрудники">Вся команда →</button></div>${employees.length?employeeTable(employees.slice(-5).reverse()):'<div class="empty-state"><span class="empty-icon">◎</span><b>Пока нет сотрудников</b><p>Новый профиль появится здесь после входа по имени и фамилии.</p></div>'}</section><section class="panel funnel-panel"><div class="panel-heading"><div><span>Контент</span><h3>Быстрые действия</h3></div></div><div class="admin-actions"><button data-action="edit-test" data-id=""><span>＋</span><div><b>Создать тест</b><small>Добавить вопросы и ответы</small></div></button><button data-nav="Тесты"><span>✓</span><div><b>Редактировать тесты</b><small>${db.tests.length} материалов</small></div></button><button data-nav="Курсы"><span>▰</span><div><b>Настроить курсы</b><small>${db.courses.length} материалов</small></div></button><button data-nav="Сотрудники"><span>●</span><div><b>Открыть аналитику</b><small>По каждому человеку</small></div></button><button data-action="export-excel"><span>⇩</span><div><b>Выгрузить в Excel</b><small>Сотрудники и результаты</small></div></button></div></section></div>${footer()}</div>`;
 }
 
 function employeeTable(users) {
-  return `<div class="table-scroll"><table><thead><tr><th>Сотрудник</th><th>Навык</th><th>Тесты</th><th>Курсы</th><th>Опыт</th><th></th></tr></thead><tbody>${users.map((user)=>{const m=userMetrics(user);return `<tr><td><span class="table-avatar">${initials(user)}</span><span><b>${escapeHtml(fullName(user))}</b><small>${formatDate(user.createdAt)}</small></span></td><td><b>${m.skill}</b><small>/100</small></td><td><b>${m.avg}%</b><small>${m.attempts.length} попыток</small></td><td><b>${m.courseAvg}%</b></td><td class="up">${m.xp} XP</td><td><button data-action="user-detail" data-id="${user.id}">Открыть →</button></td></tr>`}).join("")}</tbody></table></div>`;
+  return `<div class="table-scroll"><table><thead><tr><th>Сотрудник</th><th>Навык</th><th>Тесты</th><th>Курсы</th><th>Опыт</th><th></th></tr></thead><tbody>${users.map((user)=>{const m=userMetrics(user);return `<tr><td><span class="table-avatar">${initials(user)}</span><span><b>${escapeHtml(fullName(user))}</b><small>${formatDate(user.createdAt)}</small></span></td><td><b>${m.skill}</b><small>/100</small></td><td><b>${m.avg}%</b><small>${m.attempts.length} попыток</small></td><td><b>${m.courseAvg}%</b></td><td class="up">${m.xp} XP</td><td><div class="card-actions employee-actions"><button data-action="user-detail" data-id="${user.id}">Открыть</button><button class="danger-link" data-action="delete-user" data-id="${user.id}">Удалить</button></div></td></tr>`}).join("")}</tbody></table></div>`;
 }
 
 function adminEmployees() {
@@ -432,8 +443,8 @@ function adminTests() {
 }
 
 function adminCourses() {
-  return `<div class="dashboard">${pageIntro("Учебная программа","Курсы","Обзор материалов, доступных всей команде.")}
-    <div class="catalog-grid">${courses.map((course)=>`<article class="catalog-card panel"><span class="course-art large"><b>${course.number}</b><i>${course.icon}</i></span><div class="catalog-copy"><small>${course.category} · ${course.lessons} уроков</small><h3>${course.title}</h3><p>${course.description}</p><button class="soft-button" data-notify="Редактор курсов будет добавлен следующим этапом">Настроить курс <span>→</span></button></div></article>`).join("")}</div>${footer()}</div>`;
+  return `<div class="dashboard">${pageIntro("Учебная программа","Курсы","Создавайте, настраивайте и публикуйте учебные материалы для команды.",'<button class="primary" data-action="edit-course" data-id=""><span>＋</span> Новый курс</button>')}
+    <div class="catalog-grid">${db.courses.map((course)=>`<article class="catalog-card panel admin-course-card"><span class="course-art large"><b>${escapeHtml(course.number)}</b><i>${escapeHtml(course.icon)}</i></span><div class="catalog-copy"><div class="course-card-meta"><small>${escapeHtml(course.category)} · ${course.lessons} уроков</small><span class="publish-chip ${course.published?"live":""}">${course.published?"Опубликован":"Черновик"}</span></div><h3>${escapeHtml(course.title)}</h3><p>${escapeHtml(course.description)}</p><div class="card-actions course-actions"><button data-action="edit-course" data-id="${course.id}">Настроить</button><button class="danger-link" data-action="delete-course" data-id="${course.id}">Удалить</button></div></div></article>`).join("")||'<div class="empty-state panel"><span class="empty-icon">▰</span><b>Курсов пока нет</b><p>Создайте первый курс для команды.</p></div>'}</div>${footer()}</div>`;
 }
 
 function adminSettings() {
@@ -453,7 +464,7 @@ function openModal(html,wide=false) {
 
 function closeModal() {
   document.getElementById("modal-backdrop").classList.remove("is-open");
-  document.body.style.overflow=""; testSession=null; selectedAnswer=null; editorDraft=null;
+  document.body.style.overflow=""; testSession=null; selectedAnswer=null; editorDraft=null; courseEditorDraft=null;
 }
 
 function notify(message) {
@@ -512,6 +523,27 @@ function saveTestEditor(form) {
   const index=db.tests.findIndex((test)=>test.id===saved.id); if(index>=0)db.tests[index]=saved;else db.tests.unshift(saved); saveDb(); closeModal(); renderSection(); notify(`Тест «${saved.title}» сохранён`);
 }
 
+function courseById(id) { return db.courses.find((course)=>course.id===id); }
+
+function openCourseEditor(courseId="") {
+  const existing=courseId?courseById(courseId):null;
+  courseEditorDraft=existing?JSON.parse(JSON.stringify(existing)):{id:"",number:String(db.courses.length+1).padStart(2,"0"),icon:"▰",title:"",category:"Продажи",lessons:6,description:"",published:true};
+  openModal(`<form id="course-editor-form"><div class="editor-head"><div><div class="eyebrow">Конструктор курсов</div><h2 id="modal-title">${existing?"Настроить":"Новый"} <em>курс</em></h2></div><label class="publish-toggle"><input type="checkbox" name="published" ${courseEditorDraft.published?"checked":""}><span>Опубликовать</span></label></div><div class="course-editor-preview"><span class="course-art large"><b>${escapeHtml(courseEditorDraft.number)}</b><i>${escapeHtml(courseEditorDraft.icon)}</i></span><div><small>Карточка в каталоге</small><b>${escapeHtml(courseEditorDraft.title||"Новый курс")}</b></div></div><div class="form-grid"><label>Название<input name="title" required maxlength="100" value="${escapeHtml(courseEditorDraft.title)}" placeholder="Например, Работа с возражениями"></label><label>Категория<select name="category">${["Продажи","Практика","Продукт","Скрипты","Сервис","Адаптация"].map((category)=>`<option ${category===courseEditorDraft.category?"selected":""}>${category}</option>`).join("")}</select></label><label>Номер<input name="number" required maxlength="4" value="${escapeHtml(courseEditorDraft.number)}" placeholder="01"></label><label>Иконка<input name="icon" required maxlength="4" value="${escapeHtml(courseEditorDraft.icon)}" placeholder="☎"></label><label>Количество уроков<input name="lessons" type="number" min="1" max="100" required value="${courseEditorDraft.lessons}"></label></div><label>Описание<textarea name="description" rows="4" maxlength="500" required placeholder="Чему научится сотрудник">${escapeHtml(courseEditorDraft.description)}</textarea></label><button class="primary full" type="submit">Сохранить курс <span>→</span></button></form>`,true);
+}
+
+async function saveCourseEditor(form) {
+  const data=new FormData(form);
+  const saved={id:courseEditorDraft.id||uid("course"),number:String(data.get("number")).trim(),icon:String(data.get("icon")).trim(),title:String(data.get("title")).trim(),category:String(data.get("category")).trim(),lessons:Math.max(1,Math.min(100,Number(data.get("lessons"))||1)),description:String(data.get("description")).trim(),published:data.get("published")==="on",updatedAt:new Date().toISOString()};
+  if(!saved.title||!saved.description||!saved.number||!saved.icon){notify("Заполните все поля курса");return;}
+  const index=db.courses.findIndex((course)=>course.id===saved.id); if(index>=0)db.courses[index]=saved;else db.courses.unshift(saved); saveDb(false);
+  try {
+    const result=await cloudRequest({action:"saveCourse",pin:adminPin,course:saved}); applyCloudDb(result.db);
+    closeModal(); renderSection(); notify(`Курс «${saved.title}» сохранён`);
+  } catch(error) {
+    saveDb(); closeModal(); renderSection(); notify("Курс сохранён локально — синхронизация повторится позже");
+  }
+}
+
 function openUserDetail(userId) {
   const user=db.users.find((item)=>item.id===userId); if(!user)return;
   const m=userMetrics(user); const attempts=m.attempts.slice().sort((a,b)=>b.date.localeCompare(a.date));
@@ -520,7 +552,7 @@ function openUserDetail(userId) {
     <div class="detail-metrics"><div><strong>${m.skill}</strong><small>общий навык</small></div><div><strong>${m.avg}%</strong><small>тесты</small></div><div><strong>${m.courseAvg}%</strong><small>курсы</small></div><div><strong>${m.xp}</strong><small>XP</small></div></div>
     <div class="employee-analysis-grid"><section class="detail-analysis"><div class="panel-heading"><div><span>Компетенции</span><h3>Карта навыков</h3></div></div>${competencyBars(user)}</section><section class="detail-analysis knowledge-card"><div><span class="knowledge-ring" style="--score:${tariff.value*3.6}deg"><b>${tariff.total?`${tariff.value}%`:"—"}</b><small>тарифы</small></span><h3>Знание тарифа</h3><p>${tariff.total?tariff.value>=80?"Уверенное знание продуктовых решений":tariff.value>=60?"Хорошая база, нужна практика":"Рекомендуется повторить продуктовый курс":"Показатель появится после демо-теста"}</p></div></section></div>
     <section class="detail-analysis activity-block"><div class="panel-heading"><div><span>Динамика</span><h3>Результаты по попыткам</h3></div></div>${activityBars(user)}</section>
-    <div class="panel-heading detail-heading"><div><span>История</span><h3>Результаты тестов</h3></div></div>${attempts.length?`<div class="attempt-list">${attempts.map((a)=>`<div><span class="score-dot ${a.score>=70?"good":""}">${a.score}%</span><p><b>${escapeHtml(testById(a.testId)?.title||"Удалённый тест")}</b><small>${formatDate(a.date)} · ${a.correct} из ${a.total}</small></p></div>`).join("")}</div>`:'<div class="empty-state"><b>Тесты ещё не пройдены</b><p>Результаты появятся после первой попытки.</p></div>'}<button class="soft-button full" data-action="close-modal">Закрыть профиль</button>`,true);
+    <div class="panel-heading detail-heading"><div><span>История</span><h3>Результаты тестов</h3></div></div>${attempts.length?`<div class="attempt-list">${attempts.map((a)=>`<div><span class="score-dot ${a.score>=70?"good":""}">${a.score}%</span><p><b>${escapeHtml(testById(a.testId)?.title||"Удалённый тест")}</b><small>${formatDate(a.date)} · ${a.correct} из ${a.total}</small></p></div>`).join("")}</div>`:'<div class="empty-state"><b>Тесты ещё не пройдены</b><p>Результаты появятся после первой попытки.</p></div>'}<div class="detail-actions"><button class="danger-button" data-action="delete-user" data-id="${user.id}">Удалить сотрудника</button><button class="soft-button" data-action="close-modal">Закрыть профиль</button></div>`,true);
 }
 
 function exportData() {
@@ -564,8 +596,13 @@ document.addEventListener("click",async(event)=>{
   if(action==="edit-test")openTestEditor(id);
   if(action==="add-question"){syncEditorDraftFromForm();editorDraft.questions.push({competency:"Контакт",text:"",options:["","",""],correct:0});renderEditorQuestions();}
   if(action==="remove-question"){syncEditorDraftFromForm();const index=Number(target.dataset.index);editorDraft.questions.splice(index,1);renderEditorQuestions();}
+  if(action==="edit-course")openCourseEditor(id);
+  if(action==="delete-course"){pendingDeleteCourseId=id;const course=courseById(id);if(course)openModal(`<div class="confirm-screen"><span class="result-badge retry">!</span><div class="eyebrow">Подтверждение</div><h2 id="modal-title">Удалить курс?</h2><p>«${escapeHtml(course.title)}» исчезнет из каталога. Уже набранный сотрудниками прогресс останется в их аналитике.</p><div class="confirm-actions"><button class="soft-button" data-action="close-modal">Отмена</button><button class="primary" data-action="confirm-delete-course">Удалить</button></div></div>`);}
+  if(action==="confirm-delete-course"){const deletedId=pendingDeleteCourseId;try{const result=await cloudRequest({action:"deleteCourse",pin:adminPin,courseId:deletedId});applyCloudDb(result.db);pendingDeleteCourseId=null;closeModal();renderSection();notify("Курс удалён");}catch(error){notify(error.message||"Не удалось удалить курс");}}
   if(action==="delete-test"){pendingDeleteTestId=id;const test=testById(id);openModal(`<div class="confirm-screen"><span class="result-badge retry">!</span><div class="eyebrow">Подтверждение</div><h2 id="modal-title">Удалить тест?</h2><p>«${escapeHtml(test.title)}» исчезнет из каталога. Уже сохранённые результаты сотрудников останутся в истории.</p><div class="confirm-actions"><button class="soft-button" data-action="close-modal">Отмена</button><button class="primary" data-action="confirm-delete-test">Удалить</button></div></div>`);}
   if(action==="confirm-delete-test"){const deletedId=pendingDeleteTestId;db.tests=db.tests.filter((test)=>test.id!==deletedId);saveDb(false);if(adminPin){try{const result=await cloudRequest({action:"deleteTest",pin:adminPin,testId:deletedId});applyCloudDb(result.db);}catch{notify("Удалено локально, облако обновится позже");}}pendingDeleteTestId=null;closeModal();renderSection();notify("Тест удалён");}
+  if(action==="delete-user"){pendingDeleteUserId=id;const user=db.users.find((item)=>item.id===id&&item.role!=="admin");if(user)openModal(`<div class="confirm-screen"><span class="result-badge retry">!</span><div class="eyebrow">Безвозвратное действие</div><h2 id="modal-title">Удалить сотрудника?</h2><p>Профиль «${escapeHtml(fullName(user))}» и вся история его тестов будут удалены из общей базы.</p><div class="confirm-actions"><button class="soft-button" data-action="close-modal">Отмена</button><button class="primary" data-action="confirm-delete-user">Удалить профиль</button></div></div>`);}
+  if(action==="confirm-delete-user"){const deletedId=pendingDeleteUserId;try{const result=await cloudRequest({action:"deleteUser",pin:adminPin,userId:deletedId});applyCloudDb(result.db);pendingDeleteUserId=null;closeModal();renderSection();notify("Сотрудник и его результаты удалены");}catch(error){notify(error.message||"Не удалось удалить сотрудника");}}
   if(action==="user-detail")openUserDetail(id);
   if(action==="export-data")exportData();
   if(action==="export-excel")exportExcel();
@@ -578,6 +615,7 @@ document.addEventListener("submit",async(event)=>{
     await login(String(data.get("firstName")),String(data.get("lastName")),String(data.get("adminPin")||""));
   }
   if(event.target.id==="test-editor-form"){event.preventDefault();saveTestEditor(event.target);}
+  if(event.target.id==="course-editor-form"){event.preventDefault();await saveCourseEditor(event.target);}
 });
 
 document.getElementById("modal-backdrop").addEventListener("click",(event)=>{if(event.target.id==="modal-backdrop")closeModal();});
@@ -592,7 +630,7 @@ authForm.addEventListener("input",()=>{
 
 async function bootstrapCloud() {
   try {
-    const result=await cloudRequest({action:"bootstrap"}); mergeTests(result.tests); mergeLeaderboard(result.leaderboard); saveDb(false);
+    const result=await cloudRequest({action:"bootstrap"}); mergeTests(result.tests); mergeCourses(result.courses); mergeLeaderboard(result.leaderboard); saveDb(false);
     if(currentUserId&&currentUser()?.role!=="admin")syncCurrentState();
   } catch { cloudOnline=false; setCloudStatus("Общая база недоступна — можно продолжить локально"); }
 }

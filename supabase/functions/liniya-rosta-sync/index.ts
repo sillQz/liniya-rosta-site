@@ -2,9 +2,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ADMIN_ID = "admin-nikita-monastyrev";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const MAX_USERS = 5000;
 const MAX_TESTS = 1000;
+const MAX_COURSES = 1000;
 const MAX_ATTEMPTS = 20000;
 const ALLOWED_ORIGINS = new Set(["https://sillqz.github.io", "null"]);
 
@@ -89,6 +90,23 @@ function mergeEmployee(existing: Record<string, unknown> | null, incoming: Recor
   return next;
 }
 
+function cleanCourse(input: Record<string, unknown>) {
+  const title = cleanText(input.title, 100);
+  const description = cleanText(input.description, 500);
+  if (!title || !description) throw new Error("Заполните название и описание курса");
+  return {
+    id: cleanText(input.id || newId("course"), 160),
+    number: cleanText(input.number || "01", 4),
+    icon: cleanText(input.icon || "▰", 4),
+    title,
+    category: cleanText(input.category || "Продажи", 50),
+    lessons: Math.max(1, Math.min(100, Number(input.lessons) || 1)),
+    description,
+    published: input.published !== false,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   if (req.method === "GET") return json(req, { ok: true, service: "liniya-rosta-sync", storesIp: false });
@@ -124,6 +142,12 @@ Deno.serve(async (req: Request) => {
       return (data || []).map((row) => row.data).filter(Boolean);
     }
 
+    async function allCourses() {
+      const { data, error } = await db.from("lr_courses").select("data").order("updated_at", { ascending: true }).limit(MAX_COURSES);
+      if (error) throw error;
+      return (data || []).map((row) => row.data).filter(Boolean);
+    }
+
     async function allAttempts() {
       const { data, error } = await db.from("lr_attempts").select("data").order("updated_at", { ascending: true }).limit(MAX_ATTEMPTS);
       if (error) throw error;
@@ -137,13 +161,15 @@ Deno.serve(async (req: Request) => {
     }
 
     async function publicSnapshot(userId = "") {
-      const [users, tests, attempts] = await Promise.all([
+      const [users, tests, courses, attempts] = await Promise.all([
         allUsers(),
         allTests(),
+        allCourses(),
         userId ? attemptsFor(userId) : Promise.resolve([]),
       ]);
       return {
         tests,
+        courses,
         leaderboard: users.filter((user) => user?.role !== "admin").map((user) => ({
           id: user.id,
           firstName: user.firstName,
@@ -155,8 +181,8 @@ Deno.serve(async (req: Request) => {
     }
 
     async function fullDb() {
-      const [users, tests, attempts] = await Promise.all([allUsers(), allTests(), allAttempts()]);
-      return { version: DB_VERSION, users, tests, attempts };
+      const [users, tests, courses, attempts] = await Promise.all([allUsers(), allTests(), allCourses(), allAttempts()]);
+      return { version: DB_VERSION, users, tests, courses, attempts };
     }
 
     async function findUser(normalizedName: string) {
@@ -260,6 +286,15 @@ Deno.serve(async (req: Request) => {
         if (error) throw error;
       }
 
+      const courseRows = asArray(body?.courses, MAX_COURSES).map((raw) => {
+        const course = cleanCourse(raw as Record<string, unknown>);
+        return { id: course.id, data: course, updated_at: new Date().toISOString() };
+      });
+      if (courseRows.length) {
+        const { error } = await db.from("lr_courses").upsert(courseRows, { onConflict: "id" });
+        if (error) throw error;
+      }
+
       const attemptRows = asArray(body?.attempts, MAX_ATTEMPTS).map((raw) => {
         const attempt = { ...(raw as Record<string, unknown>) };
         attempt.id = cleanText(attempt.id || newId("attempt"), 160);
@@ -279,6 +314,35 @@ Deno.serve(async (req: Request) => {
       if (!testId) throw new Error("Тест не указан");
       const { error } = await db.from("lr_tests").delete().eq("id", testId);
       if (error) throw error;
+      return json(req, { ok: true, admin: true, db: await fullDb() });
+    }
+
+    if (action === "saveCourse") {
+      await requireAdmin();
+      if (!body?.course || typeof body.course !== "object") throw new Error("Курс не передан");
+      const course = cleanCourse(body.course);
+      const { error } = await db.from("lr_courses").upsert({ id: course.id, data: course, updated_at: new Date().toISOString() }, { onConflict: "id" });
+      if (error) throw error;
+      return json(req, { ok: true, admin: true, db: await fullDb() });
+    }
+
+    if (action === "deleteCourse") {
+      await requireAdmin();
+      const courseId = cleanText(body?.courseId, 160);
+      if (!courseId) throw new Error("Курс не указан");
+      const { error } = await db.from("lr_courses").delete().eq("id", courseId);
+      if (error) throw error;
+      return json(req, { ok: true, admin: true, db: await fullDb() });
+    }
+
+    if (action === "deleteUser") {
+      await requireAdmin();
+      const userId = cleanText(body?.userId, 160);
+      if (!userId || userId === ADMIN_ID) throw new Error("Сотрудник не указан");
+      const { error: attemptError } = await db.from("lr_attempts").delete().eq("user_id", userId);
+      if (attemptError) throw attemptError;
+      const { error: userError } = await db.from("lr_users").delete().eq("id", userId).neq("id", ADMIN_ID);
+      if (userError) throw userError;
       return json(req, { ok: true, admin: true, db: await fullDb() });
     }
 
